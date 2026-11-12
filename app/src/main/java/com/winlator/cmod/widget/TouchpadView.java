@@ -61,6 +61,16 @@ public class TouchpadView extends View {
 
     private SharedPreferences preferences;
 
+    // --- AutoTuner: запись макросов ---
+    public interface MacroRecorderListener {
+        void onTap(float x, float y);
+    }
+    private MacroRecorderListener macroRecorderListener;
+
+    public void setMacroRecorderListener(MacroRecorderListener listener) {
+        this.macroRecorderListener = listener;
+    }
+    // -----------------------------------
 
     @SuppressLint("ResourceType")
     public TouchpadView(Context context, XServer xServer, Handler timeoutHandler, Runnable hideControlsRunnable) {
@@ -160,7 +170,13 @@ public class TouchpadView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (!mouseEnabled) return true;
-        
+
+        // --- AutoTuner: перехват тапов для записи макроса ---
+        if (macroRecorderListener != null && event.getAction() == MotionEvent.ACTION_DOWN) {
+            macroRecorderListener.onTap(event.getX(), event.getY());
+        }
+        // ------------------------------------------------------
+
         boolean isTouchscreenMode = preferences.getBoolean("touchscreen_toggle", false);
 
         resetTouchscreenTimeout();
@@ -182,6 +198,7 @@ public class TouchpadView extends View {
             timeoutHandler.postDelayed(hideControlsRunnable, 5000);
         }
     }
+
     private boolean handleStylusHoverEvent(MotionEvent event) {
         int action = event.getActionMasked();
 
@@ -247,8 +264,6 @@ public class TouchpadView extends View {
         xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
         xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
     }
-
-
 
     private boolean handleTouchpadEvent(MotionEvent event) {
         int actionIndex = event.getActionIndex();
@@ -424,8 +439,6 @@ public class TouchpadView extends View {
             }
         }
     }
-
-
 
     private void handleFingerUp(Finger finger1) {
         switch (numFingers) {
@@ -722,7 +735,7 @@ public class TouchpadView extends View {
         new Handler().postDelayed(() -> updateXform(getWidth(), getHeight(), xServer.screenInfo.width, xServer.screenInfo.height),
                 UPDATE_FORM_DELAYED_TIME);
     }
-    
+
     public void setMouseEnabled(boolean enabled) {
         this.mouseEnabled = enabled;
     }
