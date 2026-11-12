@@ -56,21 +56,19 @@ public class TouchpadView extends View {
     private static final int UPDATE_FORM_DELAYED_TIME = 50;
     private boolean mouseEnabled = true;
 
-    private Handler timeoutHandler; // Reference to the activity's timeout handler
-    private Runnable hideControlsRunnable; // Runnable to hide the controls
+    private Handler timeoutHandler;
+    private Runnable hideControlsRunnable;
 
     private SharedPreferences preferences;
 
-
-    // Flag to control touchpad vs touchscreen mode
 
     @SuppressLint("ResourceType")
     public TouchpadView(Context context, XServer xServer, Handler timeoutHandler, Runnable hideControlsRunnable) {
         super(context);
         this.xServer = xServer;
 
-        this.timeoutHandler = timeoutHandler; // Store the reference to timeout handler
-        this.hideControlsRunnable = hideControlsRunnable; // Store the reference to the hide controls runnable
+        this.timeoutHandler = timeoutHandler;
+        this.hideControlsRunnable = hideControlsRunnable;
 
         setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setBackground(createTransparentBg());
@@ -79,13 +77,11 @@ public class TouchpadView extends View {
         setFocusableInTouchMode(false);
         setPointerIcon(PointerIcon.load(getResources(), R.drawable.hidden_pointer_arrow));
         updateXform(AppUtils.getScreenWidth(), AppUtils.getScreenHeight(), xServer.screenInfo.width, xServer.screenInfo.height);
-        // Initialize SharedPreferences here
         this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
 
-        this.timeoutHandler = timeoutHandler; // Store the reference to timeout handler
-        this.hideControlsRunnable = hideControlsRunnable; // Store the reference to the hide controls runnable
+        this.timeoutHandler = timeoutHandler;
+        this.hideControlsRunnable = hideControlsRunnable;
 
-        // Set up the generic motion listener for hover events
         setOnGenericMotionListener(new OnGenericMotionListener() {
             @Override
             public boolean onGenericMotion(View v, MotionEvent event) {
@@ -161,21 +157,14 @@ public class TouchpadView extends View {
         }
     }
 
-//    public void setTouchscreenMode(boolean isTouchscreenMode) {
-//        this.isTouchscreenMode = isTouchscreenMode;
-//    }
-
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        // If mouse is disabled, ignore all input
         if (!mouseEnabled) return true;
         
         boolean isTouchscreenMode = preferences.getBoolean("touchscreen_toggle", false);
 
-        // Reset the timeout timer to keep controls visible
-        resetTouchscreenTimeout();  // <-- Ensure the controls stay visible
+        resetTouchscreenTimeout();
 
-        // Continue handling touch events as usual
         int toolType = event.getToolType(0);
 
         if (toolType == MotionEvent.TOOL_TYPE_STYLUS) {
@@ -188,12 +177,9 @@ public class TouchpadView extends View {
     }
 
     private void resetTouchscreenTimeout() {
-        //Log.d("TouchpadView", "Touch detected, resetting timeout.");
         if (timeoutHandler != null && hideControlsRunnable != null) {
-            // Cancel any pending hide requests
             timeoutHandler.removeCallbacks(hideControlsRunnable);
-            // Post a new request to hide the controls after 5 seconds
-            timeoutHandler.postDelayed(hideControlsRunnable, 5000); // Adjust timeout as necessary
+            timeoutHandler.postDelayed(hideControlsRunnable, 5000);
         }
     }
     private boolean handleStylusHoverEvent(MotionEvent event) {
@@ -293,8 +279,6 @@ public class TouchpadView extends View {
                         }
                         postDelayed(clickDelay, CLICK_DELAYED_TIME);
                     } else if (pointerId == 1) {
-                        // When put a finger on InputControl, such as a button.
-                        // The pointerId that TouchPadView got won't increase from 1, so map 1 as 0 here.
                         if (numFingers < 2) {
                             continueClick = true;
                             if (Math.hypot(fingers[1].x - lastTouchedPosX, fingers[1].y - lastTouchedPosY) * resolutionScale > EFFECTIVE_TOUCH_DISTANCE) {
@@ -390,9 +374,8 @@ public class TouchpadView extends View {
         if (xServer.isRelativeMouseMovement())
             xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, (int)transformedPoint[0], (int)transformedPoint[1], 0);
         else
-            xServer.injectPointerWarp((int) transformedPoint[0], (int) transformedPoint[1]); // new touch is a jump, not raw motion
+            xServer.injectPointerWarp((int) transformedPoint[0], (int) transformedPoint[1]);
 
-        // Handle long press for right click (or use a dedicated method to detect long press)
         if (event.getPointerCount() == 1) {
             if (xServer.isRelativeMouseMovement())
                 xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTDOWN, 0, 0, 0);
@@ -742,5 +725,13 @@ public class TouchpadView extends View {
     
     public void setMouseEnabled(boolean enabled) {
         this.mouseEnabled = enabled;
+    }
+
+    // --- AutoTuner: программный тап ---
+    public void injectTap(float viewX, float viewY, int holdMs) {
+        float[] p = XForm.transformPoint(xform, viewX, viewY);
+        xServer.injectPointerMove((int) p[0], (int) p[1]);
+        xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
+        postDelayed(() -> xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT), holdMs);
     }
 }
