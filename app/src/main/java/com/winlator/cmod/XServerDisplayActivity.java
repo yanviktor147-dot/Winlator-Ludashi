@@ -214,7 +214,6 @@ private final Handler autoTunerHandler = new Handler(Looper.getMainLooper());
 private final java.util.ArrayList<Float> fpsHistory = new java.util.ArrayList<>();
 private android.widget.Button btnCaptureClick;
 private android.widget.Button btnTestClick;
-private android.view.View coordInterceptor;
 private boolean isRecordingMacro = false;
 private long lastMacroClickTime = 0;
 private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordinates.txt";
@@ -1822,44 +1821,40 @@ private void playMacro() {
 
 private void toggleMacroRecording(FrameLayout rootView) {
     if (isRecordingMacro) {
+        // --- СТОП ---
         isRecordingMacro = false;
         btnCaptureClick.setText("📸 Запись");
-        if (coordInterceptor != null && coordInterceptor.getParent() != null) {
-            rootView.removeView(coordInterceptor);
-            coordInterceptor = null;
+
+        if (touchpadView != null) {
+            touchpadView.setMacroRecorderListener(null);
         }
+
         File file = new File(COORD_FILE_PATH);
-        Toast.makeText(this, "Запись остановлена!\nРазмер: " + file.length() + " байт",
-                Toast.LENGTH_LONG).show();
+        String info = "Файл: " + file.getAbsolutePath() + "\nРазмер: " + file.length() + " байт";
+        Log.d("AutoTuner", "Запись остановлена. " + info.replace("\n", " "));
+        Toast.makeText(this, "Запись остановлена!\n" + info, Toast.LENGTH_LONG).show();
     } else {
+        // --- СТАРТ ---
         isRecordingMacro = true;
         btnCaptureClick.setText("⏹ Стоп");
         lastMacroClickTime = System.currentTimeMillis();
+
         File file = new File(COORD_FILE_PATH);
-        if (file.exists()) file.delete();
+        if (file.exists()) {
+            boolean deleted = file.delete();
+            Log.d("AutoTuner", "Старый файл удален: " + deleted);
+        }
 
-        Toast.makeText(this, "Тапай по кнопкам в игре!\nФайл: " + COORD_FILE_PATH,
-                Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Тапай по кнопкам в игре!\nФайл: " + COORD_FILE_PATH, Toast.LENGTH_LONG).show();
 
-        coordInterceptor = new View(this);
-        coordInterceptor.setBackgroundColor(Color.TRANSPARENT);
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
-
-        coordInterceptor.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN && isRecordingMacro) {
-                int x = (int) event.getX();
-                int y = (int) event.getY();
+        if (touchpadView != null) {
+            touchpadView.setMacroRecorderListener((x, y) -> {
                 long now = System.currentTimeMillis();
                 long delay = now - lastMacroClickTime;
                 lastMacroClickTime = now;
-                saveMacroStep(x, y, delay);
-                if (touchpadView != null) touchpadView.injectTap(x, y, 80);
-                return true;
-            }
-            return false;
-        });
-        rootView.addView(coordInterceptor, lp);
+                saveMacroStep((int) x, (int) y, delay);
+            });
+        }
     }
 }
 
