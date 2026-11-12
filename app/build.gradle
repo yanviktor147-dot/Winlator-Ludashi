@@ -211,7 +211,7 @@ android {
         }
         release {
             minifyEnabled false
-            signingConfig signingConfigs.upstream
+           // signingConfig signingConfigs.upstream
             crunchPngs false
         }
     }
