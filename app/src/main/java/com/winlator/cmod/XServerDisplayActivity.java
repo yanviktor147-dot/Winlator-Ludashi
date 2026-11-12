@@ -719,8 +719,8 @@ private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordi
         NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, builder.build());
 
         Runnable runnable = () -> {
-            if (!winStarted[0] && window.isApplicationWindow()) {     if (!simulateTouchScreen) {         xServerView.setCursorVisible(true);     }     preloaderDialog.closeOnUiThread();     winStarted[0] = true; };
-            setupSidebarInputControls();
+    setupUI();
+    setupSidebarInputControls();
             if (controlsProfile.isEmpty()) {
 
                 simulateConfirmInputControlsDialog();
@@ -1714,7 +1714,7 @@ if (ownsPrefixLease && environment == null && container != null) {
             }
         }
 
-            AppUtils.observeSoftKeyboardVisibility(drawerLayout, renderer::setScreenOffsetYRelativeToCursor);
+                AppUtils.observeSoftKeyboardVisibility(drawerLayout, renderer::setScreenOffsetYRelativeToCursor);
 
     setupSidebarHudControls();
     setupSidebarGraphicsControls();
