@@ -138,7 +138,7 @@ public class AutoTuner {
                         final int step = ++stepCount;
                         handler.postDelayed(() -> {
                             Log.d(TAG, "Tap " + step + ": " + x + "," + y);
-                            if (touchpadView != null) touchpadView.injectTap(x, y, 80);
+                            if (touchpadView != null) touchpadView.injectTapAtXServer(x, y, 80);
                         }, totalDelay);
                         totalDelay += delay;
                     } catch (NumberFormatException e) {
