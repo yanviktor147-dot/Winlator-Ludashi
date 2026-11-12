@@ -28,6 +28,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.Gravity;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
@@ -128,17 +129,18 @@ import com.winlator.cmod.xserver.extensions.RandrExtension;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
@@ -205,7 +207,17 @@ public class XServerDisplayActivity extends AppCompatActivity {
     private short taskAffinityMaskWoW64 = 0;
     private String wineCpuTopologyValue = "";
     private int frameRatingWindowId = -1;
-
+    // --- AutoTuner поля ---
+private AutoTuner autoTuner;
+private android.widget.TextView autoTunerFpsView;
+private final Handler autoTunerHandler = new Handler(Looper.getMainLooper());
+private final java.util.ArrayList<Float> fpsHistory = new java.util.ArrayList<>();
+private android.widget.Button btnCaptureClick;
+private android.widget.Button btnTestClick;
+private android.view.View coordInterceptor;
+private boolean isRecordingMacro = false;
+private long lastMacroClickTime = 0;
+private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordinates.txt";
     private int activeRendererWindowId = -1;
     private String lastRendererName = null;
     private boolean cursorLock;
@@ -610,13 +622,16 @@ public class XServerDisplayActivity extends AppCompatActivity {
             @Override
             public void onUpdateWindowContent(Window window) {
                 if (!winStarted[0] && window.isApplicationWindow()) {
-                    if (!simulateTouchScreen) {
-                        xServerView.setCursorVisible(true);
-                    }
-                    preloaderDialog.closeOnUiThread();
-                    winStarted[0] = true;
-                }
+    if (!simulateTouchScreen) {
+        xServerView.setCursorVisible(true);
+    }
+    preloaderDialog.closeOnUiThread();
+    winStarted[0] = true;
 
+    // --- AutoTuner: старт замера после запуска игры ---
+    if (autoTuner != null) autoTuner.onWinStarted();
+    if (classicHud != null) classicHud.enableForAutoTuner();
+}
                 if (frameRatingWindowId == window.id) {
                     if (classicHud != null) classicHud.update();
                     if (modernHud != null) modernHud.onFrame();
@@ -704,7 +719,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
         NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, builder.build());
 
         Runnable runnable = () -> {
-            setupUI();
+            if (!winStarted[0] && window.isApplicationWindow()) {     if (!simulateTouchScreen) {         xServerView.setCursorVisible(true);     }     preloaderDialog.closeOnUiThread();     winStarted[0] = true; };
             setupSidebarInputControls();
             if (controlsProfile.isEmpty()) {
 
@@ -935,6 +950,35 @@ public class XServerDisplayActivity extends AppCompatActivity {
         editor.putInt(playCountKey, playCount);
         editor.apply();
     }
+    // --- AutoTuner: перезапуск без выхода в главное меню ---
+public void restartForAutoTuner() {
+    if (!exiting.compareAndSet(false, true)) return;
+
+    if (xServerView != null) xServerView.forceCleanup();
+    if (midiHandler != null) midiHandler.stop();
+    if (environment != null) {
+        environment.stopEnvironmentComponents();
+        environment = null;
+    }
+    if (winHandler != null) winHandler.stop();
+    if (wineRequestHandler != null) wineRequestHandler.stop();
+    if (ownsPrefixLease && container != null) {
+        com.winlator.cmod.core.ContainerSessionGate.stop(container.id);
+        ownsPrefixLease = false;
+    }
+
+    ProcessHelper.terminateAllWineProcesses();
+
+    Intent intent = new Intent(this, XServerDisplayActivity.class);
+    intent.putExtra("container_id", container.id);
+    if (shortcut != null) {
+        intent.putExtra("shortcut_path", shortcut.path);
+        intent.putExtra("shortcut_name", shortcutName);
+    }
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+    startActivity(intent);
+    finish();
+}
 
     public void exitSteamLaunchFailure() { exit(); }
 
@@ -1018,7 +1062,10 @@ public class XServerDisplayActivity extends AppCompatActivity {
             winlatorLogcatLogger = null;
         }
         if (taskManagerSidebar != null) taskManagerSidebar.stop();
-        if (ownsPrefixLease && environment == null && container != null) {
+// --- AutoTuner cleanup ---
+if (autoTuner != null) autoTuner.clearTimers();
+if (autoTunerHandler != null) autoTunerHandler.removeCallbacksAndMessages(null);
+if (ownsPrefixLease && environment == null && container != null) {
             com.winlator.cmod.core.ContainerSessionGate.stop(container.id);
             ownsPrefixLease = false;
         }
@@ -1667,11 +1714,187 @@ public class XServerDisplayActivity extends AppCompatActivity {
             }
         }
 
-        AppUtils.observeSoftKeyboardVisibility(drawerLayout, renderer::setScreenOffsetYRelativeToCursor);
+            AppUtils.observeSoftKeyboardVisibility(drawerLayout, renderer::setScreenOffsetYRelativeToCursor);
 
-        setupSidebarHudControls();
-        setupSidebarGraphicsControls();
+    setupSidebarHudControls();
+    setupSidebarGraphicsControls();
+
+    // --- AutoTuner: оверлей ---
+    createAutoTunerOverlay(rootView);
+}
+// --- AutoTuner: оверлей и макросы ---
+private void createAutoTunerOverlay(FrameLayout rootView) {
+    autoTunerFpsView = new android.widget.TextView(this);
+    autoTunerFpsView.setText("Средний FPS: 0.0");
+    autoTunerFpsView.setTextColor(Color.GREEN);
+    autoTunerFpsView.setTextSize(20);
+    autoTunerFpsView.setBackgroundColor(Color.parseColor("#80000000"));
+    autoTunerFpsView.setPadding(30, 20, 30, 20);
+
+    FrameLayout.LayoutParams fpsParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    fpsParams.gravity = Gravity.TOP | Gravity.START;
+    fpsParams.leftMargin = 50;
+    fpsParams.topMargin = 50;
+    rootView.addView(autoTunerFpsView, fpsParams);
+
+    btnCaptureClick = new android.widget.Button(this);
+    btnCaptureClick.setText("📸 Записать клик");
+    btnCaptureClick.setTextSize(12);
+    FrameLayout.LayoutParams btn1Params = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    btn1Params.gravity = Gravity.TOP | Gravity.END;
+    btn1Params.rightMargin = 50;
+    btn1Params.topMargin = 150;
+    rootView.addView(btnCaptureClick, btn1Params);
+    btnCaptureClick.setOnClickListener(v -> toggleMacroRecording(rootView));
+
+    btnTestClick = new android.widget.Button(this);
+    btnTestClick.setText("▶️ Воспроизвести");
+    btnTestClick.setTextSize(12);
+    FrameLayout.LayoutParams btn2Params = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    btn2Params.gravity = Gravity.TOP | Gravity.END;
+    btn2Params.rightMargin = 50;
+    btn2Params.topMargin = 250;
+    rootView.addView(btnTestClick, btn2Params);
+    btnTestClick.setOnClickListener(v -> playMacro());
+
+    android.widget.Button btnAutoTune = new android.widget.Button(this);
+    btnAutoTune.setText("🚀 Тест Авто");
+    btnAutoTune.setTextSize(12);
+    FrameLayout.LayoutParams btn3Params = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    btn3Params.gravity = Gravity.TOP | Gravity.END;
+    btn3Params.rightMargin = 50;
+    btn3Params.topMargin = 350;
+    rootView.addView(btnAutoTune, btn3Params);
+
+    btnAutoTune.setOnClickListener(v -> {
+        if (autoTuner == null) {
+            autoTuner = new AutoTuner(this, container, shortcut, classicHud, touchpadView);
+        }
+        autoTuner.startAutoTuning();
+    });
+
+    startAutoTunerLoop();
+}
+
+private void playMacro() {
+    try {
+        File file = new File(COORD_FILE_PATH);
+        String info = "Файл:\n" + file.getAbsolutePath()
+                + "\nСуществует: " + file.exists()
+                + "\nРазмер: " + file.length() + " байт";
+        Log.d("AutoTuner", info.replace("\n", " | "));
+        Toast.makeText(this, info, Toast.LENGTH_LONG).show();
+        if (!file.exists() || file.length() == 0) {
+            Toast.makeText(this, "❌ Макрос пуст или не найден!", Toast.LENGTH_LONG).show();
+            return;
+        }
+        BufferedReader reader = new BufferedReader(new FileReader(file));
+        String line;
+        long totalDelay = 0;
+        int stepCount = 0;
+        Handler macroHandler = new Handler(Looper.getMainLooper());
+        while ((line = reader.readLine()) != null) {
+            if (line.trim().isEmpty()) continue;
+            String[] parts = line.split(",");
+            if (parts.length >= 3) {
+                final int x = Integer.parseInt(parts[0].trim());
+                final int y = Integer.parseInt(parts[1].trim());
+                final long delay = Long.parseLong(parts[2].trim());
+                final int step = ++stepCount;
+                macroHandler.postDelayed(() -> {
+                    Log.d("AutoTuner", "Tap " + step + ": " + x + "," + y);
+                    if (touchpadView != null) touchpadView.injectTap(x, y, 80);
+                }, totalDelay);
+                totalDelay += delay;
+            }
+        }
+        reader.close();
+        Toast.makeText(this, "✅ Воспроизведение " + stepCount + " кликов...", Toast.LENGTH_SHORT).show();
+    } catch (Exception e) {
+        Log.e("AutoTuner", "Macro error", e);
+        Toast.makeText(this, "Ошибка: " + e.getMessage(), Toast.LENGTH_LONG).show();
     }
+}
+
+private void toggleMacroRecording(FrameLayout rootView) {
+    if (isRecordingMacro) {
+        isRecordingMacro = false;
+        btnCaptureClick.setText("📸 Запись");
+        if (coordInterceptor != null && coordInterceptor.getParent() != null) {
+            rootView.removeView(coordInterceptor);
+            coordInterceptor = null;
+        }
+        File file = new File(COORD_FILE_PATH);
+        Toast.makeText(this, "Запись остановлена!\nРазмер: " + file.length() + " байт",
+                Toast.LENGTH_LONG).show();
+    } else {
+        isRecordingMacro = true;
+        btnCaptureClick.setText("⏹ Стоп");
+        lastMacroClickTime = System.currentTimeMillis();
+        File file = new File(COORD_FILE_PATH);
+        if (file.exists()) file.delete();
+
+        Toast.makeText(this, "Тапай по кнопкам в игре!\nФайл: " + COORD_FILE_PATH,
+                Toast.LENGTH_LONG).show();
+
+        coordInterceptor = new View(this);
+        coordInterceptor.setBackgroundColor(Color.TRANSPARENT);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+
+        coordInterceptor.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN && isRecordingMacro) {
+                int x = (int) event.getX();
+                int y = (int) event.getY();
+                long now = System.currentTimeMillis();
+                long delay = now - lastMacroClickTime;
+                lastMacroClickTime = now;
+                saveMacroStep(x, y, delay);
+                if (touchpadView != null) touchpadView.injectTap(x, y, 80);
+                return true;
+            }
+            return false;
+        });
+        rootView.addView(coordInterceptor, lp);
+    }
+}
+
+private void startAutoTunerLoop() {
+    autoTunerHandler.postDelayed(new Runnable() {
+        @Override
+        public void run() {
+            if (classicHud != null && autoTunerFpsView != null) {
+                float currentFps = classicHud.getLastFps();
+                if (currentFps > 0) {
+                    fpsHistory.add(currentFps);
+                    if (fpsHistory.size() > 5) fpsHistory.remove(0);
+                    float sum = 0;
+                    for (float f : fpsHistory) sum += f;
+                    float avg = sum / fpsHistory.size();
+                    autoTunerFpsView.setText(String.format(Locale.ENGLISH, "Средний FPS: %.1f", avg));
+                }
+            }
+            autoTunerHandler.postDelayed(this, 1000);
+        }
+    }, 1000);
+}
+
+private void saveMacroStep(int x, int y, long delay) {
+    try {
+        FileWriter writer = new FileWriter(new File(COORD_FILE_PATH), true);
+        writer.write(x + "," + y + "," + delay + "\n");
+        writer.close();
+        Log.d("AutoTuner", "Recorded: " + x + "," + y + "," + delay);
+        Toast.makeText(this, "Записано: X=" + x + ", Y=" + y, Toast.LENGTH_SHORT).show();
+    } catch (IOException e) {
+        Log.e("AutoTuner", "Write error", e);
+        Toast.makeText(this, "Ошибка записи: " + e.getMessage(), Toast.LENGTH_LONG).show();
+    }
+}
 
     private ActivityResultLauncher<Intent> controlsEditorActivityResultLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
