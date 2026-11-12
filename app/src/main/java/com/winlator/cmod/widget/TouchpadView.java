@@ -168,14 +168,16 @@ public class TouchpadView extends View {
     }
 
     @Override
+        @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (!mouseEnabled) return true;
-
-        // --- AutoTuner: перехват тапов для записи макроса ---
+        // --- AutoTuner: перехват тапов для записи макроса (координаты X-сервера) ---
         if (macroRecorderListener != null && event.getAction() == MotionEvent.ACTION_DOWN) {
-            macroRecorderListener.onTap(event.getX(), event.getY());
+            float[] macroPoint = XForm.transformPoint(xform, event.getX(), event.getY());
+            macroRecorderListener.onTap(macroPoint[0], macroPoint[1]);
         }
-        // ------------------------------------------------------
+        // ---------------------------------------------------------------------------
+
+        if (!mouseEnabled) return true;
 
         boolean isTouchscreenMode = preferences.getBoolean("touchscreen_toggle", false);
 
@@ -620,6 +622,14 @@ public class TouchpadView extends View {
     public boolean onExternalMouseEvent(MotionEvent event) {
         boolean handled = false;
         if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
+                        // --- AutoTuner: запись кликов внешней мыши (без захвата курсора) ---
+            if (macroRecorderListener != null
+                    && event.getAction() == MotionEvent.ACTION_BUTTON_PRESS
+                    && event.getActionButton() == MotionEvent.BUTTON_PRIMARY) {
+                macroRecorderListener.onTap(xServer.pointer.getX(), xServer.pointer.getY());
+            }
+            // -------------------------------------------------------------------
+
             int actionButton = event.getActionButton();
             switch (event.getAction()) {
                 case MotionEvent.ACTION_BUTTON_PRESS:
@@ -738,6 +748,16 @@ public class TouchpadView extends View {
 
     public void setMouseEnabled(boolean enabled) {
         this.mouseEnabled = enabled;
+    }
+    // --- AutoTuner: программный тап в координатах X-сервера ---
+    public void injectTapAtXServer(int x, int y, int holdMs) {
+        if (xServer.isRelativeMouseMovement()) {
+            xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, x, y, 0);
+        } else {
+            xServer.injectPointerWarp(x, y);
+        }
+        xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
+        postDelayed(() -> xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT), holdMs);
     }
 
     // --- AutoTuner: программный тап ---
