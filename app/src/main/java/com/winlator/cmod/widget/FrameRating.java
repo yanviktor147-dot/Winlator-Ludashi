@@ -222,5 +222,14 @@ public class FrameRating extends FrameLayout implements Runnable {
         return Math.max(0L, delta);
     }
 
-}
+    // --- AutoTuner ---
+    public void enableForAutoTuner() {
+        userEnabled = true;
+        post(() -> setVisibility(View.VISIBLE));
+    }
 
+    public float getLastFps() {
+        return lastFPS;
+    }
+
+}
