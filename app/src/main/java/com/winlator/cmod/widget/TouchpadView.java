@@ -31,9 +31,6 @@ public class TouchpadView extends View {
         // --- AutoTuner: модель позиции игрового курсора (относительный режим) ---
     private int gameCursorX = -1;
     private int gameCursorY = -1;
-        // --- AutoTuner: калибровка относительных дельт (макросы и LINE TEST) ---
-    public static float DELTA_CALIBRATION = 5.0f;
-
     private static final byte MAX_FINGERS = 4;
     private static final short MAX_TWO_FINGERS_SCROLL_DISTANCE = 350;
     public static final byte MAX_TAP_TRAVEL_DISTANCE = 10;
