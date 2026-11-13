@@ -28,6 +28,10 @@ import com.winlator.cmod.xserver.Pointer;
 import com.winlator.cmod.xserver.XServer;
 
 public class TouchpadView extends View {
+        // --- AutoTuner: модель позиции игрового курсора (относительный режим) ---
+    private int gameCursorX = -1;
+    private int gameCursorY = -1;
+
     private static final byte MAX_FINGERS = 4;
     private static final short MAX_TWO_FINGERS_SCROLL_DISTANCE = 350;
     public static final byte MAX_TAP_TRAVEL_DISTANCE = 10;
@@ -751,24 +755,30 @@ public class TouchpadView extends View {
     public void recordExternalTap(float xServerX, float xServerY) {
         if (macroRecorderListener != null) macroRecorderListener.onTap(xServerX, xServerY);
     }
-            // --- AutoTuner: программный тап в координатах X-сервера ---
+                // --- AutoTuner: программный тап в координатах X-сервера ---
     public void injectTapAtXServer(int x, int y, int holdMs) {
         if (xServer.isRelativeMouseMovement()) {
-            // относительный режим: игровой курсор живёт только на дельтах winHandler.
-            // 1) Свип в угол: огромная дельта, Windows зажмёт курсор в правом нижнем углу
-            xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, 30000, 30000, 0);
+            WinHandler wh = xServer.getWinHandler();
+            // 1) Синхронизация: если позиция игрового курсора неизвестна —
+            //    зажимаем его в правый нижний угол, теперь она известна
+            if (gameCursorX < 0) {
+                wh.mouseEvent(MouseEventFlags.MOVE, 30000, 30000, 0);
+                gameCursorX = xServer.screenInfo.width - 1;
+                gameCursorY = xServer.screenInfo.height - 1;
+            }
+            // 2) Ведём игровой курсор дельтами к цели
+            int dx = x - gameCursorX;
+            int dy = y - gameCursorY;
+            if (dx != 0 || dy != 0) wh.mouseEvent(MouseEventFlags.MOVE, dx, dy, 0);
+            gameCursorX = x;
+            gameCursorY = y;
+            // 3) Чёрный (серверный) курсор — на ту же точку, чтобы совпадали
+            xServer.injectPointerWarp(x, y);
+            // 4) Клик через winHandler — тем каналом, который игра слышит
             postDelayed(() -> {
-                // 2) Теперь позиция известна: (screenW-1, screenH-1). Едем в цель точными дельтами
-                int dx = x - (xServer.screenInfo.width - 1);
-                int dy = y - (xServer.screenInfo.height - 1);
-                xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, dx, dy, 0);
-                postDelayed(() -> {
-                    // 3) Клик — тоже через winHandler, тем же каналом, что и физическая мышь
-                    xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTDOWN, 0, 0, 0);
-                    postDelayed(() ->
-                            xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0), holdMs);
-                }, 60);
-            }, 80);
+                wh.mouseEvent(MouseEventFlags.LEFTDOWN, 0, 0, 0);
+                postDelayed(() -> wh.mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0), holdMs);
+            }, 60);
         } else {
             // абсолютный режим: прежний рабочий путь
             xServer.injectPointerWarp(x, y);
@@ -778,6 +788,13 @@ public class TouchpadView extends View {
             }, 60);
         }
     }
+
+    // Сброс синхронизации — вызывать перед началом воспроизведения макроса
+    public void resetGameCursorSync() {
+        gameCursorX = -1;
+        gameCursorY = -1;
+    }
+
 
 
 
