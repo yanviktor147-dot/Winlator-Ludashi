@@ -1746,17 +1746,7 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
     fpsParams.topMargin = 50;
     rootView.addView(autoTunerFpsView, fpsParams);
 
-    btnCaptureClick = new android.widget.Button(this);
-    btnCaptureClick.setText("📸 Записать клик");
-    btnCaptureClick.setTextSize(12);
-    FrameLayout.LayoutParams btn1Params = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-    btn1Params.gravity = Gravity.TOP | Gravity.END;
-    btn1Params.rightMargin = 50;
-    btn1Params.topMargin = 150;
-    rootView.addView(btnCaptureClick, btn1Params);
-    btnCaptureClick.setOnClickListener(v -> toggleMacroRecording(rootView));
-
+    
     btnTestClick = new android.widget.Button(this);
     btnTestClick.setText("▶️ Воспроизвести");
     btnTestClick.setTextSize(12);
@@ -1767,40 +1757,14 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
     btn2Params.topMargin = 250;
     rootView.addView(btnTestClick, btn2Params);
     btnTestClick.setOnClickListener(v -> playMacro());
-
-    android.widget.Button btnAutoTune = new android.widget.Button(this);
-    btnAutoTune.setText("🚀 Тест Авто");
-    btnAutoTune.setTextSize(12);
-    FrameLayout.LayoutParams btn3Params = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-    btn3Params.gravity = Gravity.TOP | Gravity.END;
-    btn3Params.rightMargin = 50;
-    btn3Params.topMargin = 350;
-    rootView.addView(btnAutoTune, btn3Params);
-
-    btnAutoTune.setOnClickListener(v -> {
-        if (autoTuner == null) {
-            autoTuner = new AutoTuner(this, container, shortcut, classicHud, touchpadView);
+    btnTestClick.setOnLongClickListener(v -> {
+        if (touchpadView != null) {
+            touchpadView.resetGameCursorSync();
+            touchpadView.runLineTest();
+            Toast.makeText(this, "LINE TEST запущен: 6 шагов по 100px", Toast.LENGTH_SHORT).show();
         }
-        autoTuner.startAutoTuning();
+        return true;
     });
-
-    startAutoTunerLoop();
-}
-
-private void playMacro() {
-    try {
-        File file = new File(COORD_FILE_PATH);
-        String info = "Файл:\n" + file.getAbsolutePath()
-                + "\nСуществует: " + file.exists()
-                + "\nРазмер: " + file.length() + " байт";
-        Log.d("AutoTuner", info.replace("\n", " | "));
-        Toast.makeText(this, info, Toast.LENGTH_LONG).show();
-        if (!file.exists() || file.length() == 0) {
-            Toast.makeText(this, "❌ Макрос пуст или не найден!", Toast.LENGTH_LONG).show();
-            return;
-        }
-
         // --- AutoTuner: сброс синхронизации игрового курсора перед воспроизведением ---
         if (touchpadView != null) touchpadView.resetGameCursorSync();
         // -----------------------------------------------------------------------------
