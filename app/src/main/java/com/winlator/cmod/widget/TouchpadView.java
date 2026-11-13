@@ -59,7 +59,7 @@ public class TouchpadView extends View {
     private boolean mouseEnabled = true;
 
     // --- AutoTuner: калибровка относительных дельт (макросы и LINE TEST) ---
-    public static float DELTA_CALIBRATION = 1.0f;
+    public static float DELTA_CALIBRATION = 0.5f;
 
     private Handler timeoutHandler;
     private Runnable hideControlsRunnable;
