@@ -3411,8 +3411,43 @@ private void saveMacroStep(int x, int y, long delay) {
         }
     }
 
+    // --- Свайп от левого края вправо открывает боковую панель (вместо 4 пальцев) ---
+    private float sidebarSwipeStartX = -1f, sidebarSwipeStartY = -1f;
+    private boolean sidebarSwipeTracking = false;
+    private static final float SIDEBAR_SWIPE_EDGE_PX = 80f;
+    private static final float SIDEBAR_SWIPE_MIN_DX = 150f;
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
+        if (drawerLayout != null) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    sidebarSwipeStartX = event.getX();
+                    sidebarSwipeStartY = event.getY();
+                    sidebarSwipeTracking = sidebarSwipeStartX < SIDEBAR_SWIPE_EDGE_PX;
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if (sidebarSwipeTracking) {
+                        float dx = event.getX() - sidebarSwipeStartX;
+                        float dy = event.getY() - sidebarSwipeStartY;
+                        if (dx > SIDEBAR_SWIPE_MIN_DX && Math.abs(dy) < 120f) {
+                            sidebarSwipeTracking = false;
+                            if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                                drawerLayout.openDrawer(GravityCompat.START);
+                            }
+                            return true;
+                        } else if (dx < -50f || Math.abs(dy) > 150f) {
+                            sidebarSwipeTracking = false;
+                        }
+                    }
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    sidebarSwipeTracking = false;
+                    sidebarSwipeStartX = -1f;
+                    break;
+            }
+        }
         if (isPaused && (drawerLayout == null || !drawerLayout.isDrawerOpen(GravityCompat.START))
                 && !com.winlator.cmod.ui.ThemedAlertHost.isShowing()
                 && (debugDialog == null || !debugDialog.isShowing())) return true;
@@ -3459,6 +3494,14 @@ private void saveMacroStep(int x, int y, long delay) {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // --- Esc: не даём системе превратить её в "Назад", отдаём игре ---
+        if (event.getKeyCode() == KeyEvent.KEYCODE_ESCAPE) {
+            if (winHandler != null && winHandler.onKeyEvent(event)) return true;
+            if (xServer != null && xServer.keyboard.onKeyEvent(event)) return true;
+            return true; // глотаем в любом случае, чтобы не сработал фолбэк на BACK
+        }
+        // ------------------------------------------------------------------
+
         if (isSidebarKey(event)) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
                 onBackPressed();
