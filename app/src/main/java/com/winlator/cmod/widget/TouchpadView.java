@@ -37,8 +37,6 @@ public class TouchpadView extends View {
     public static final byte MAX_TAP_TRAVEL_DISTANCE = 10;
     public static final short MAX_TAP_MILLISECONDS = 200;
     public static final float CURSOR_ACCELERATION = 1.25f;
-    // --- AutoTuner: калибровка дельт для макросов и LINE TEST (подбирается по тесту) ---
-    public static float DELTA_CALIBRATION = 5.0f;
     public static final byte CURSOR_ACCELERATION_THRESHOLD = 6;
     private final Finger[] fingers = new Finger[MAX_FINGERS];
     private byte numFingers = 0;
@@ -60,6 +58,9 @@ public class TouchpadView extends View {
     private float resolutionScale;
     private static final int UPDATE_FORM_DELAYED_TIME = 50;
     private boolean mouseEnabled = true;
+
+    // --- AutoTuner: калибровка относительных дельт (макросы и LINE TEST) ---
+    public static float DELTA_CALIBRATION = 5.0f;
 
     private Handler timeoutHandler;
     private Runnable hideControlsRunnable;
@@ -746,14 +747,13 @@ public class TouchpadView extends View {
     }
                     // --- AutoTuner: серия мелких дельт, чтобы Wine не обрезал большие скачки ---
     private void sendRelativeMove(WinHandler wh, int dx, int dy) {
-        // калибровка: модельный пиксель = DELTA_CALIBRATION дельт (измерено LINE TEST'ом)
-        float fx = dx * DELTA_CALIBRATION;
-        float fy = dy * DELTA_CALIBRATION;
-        int steps = Math.max(1, (Math.max(Math.abs(Math.round(fx)), Math.abs(Math.round(fy))) + 199) / 200);
+        dx = Math.round(dx * DELTA_CALIBRATION);
+        dy = Math.round(dy * DELTA_CALIBRATION);
+        int steps = Math.max(1, (Math.max(Math.abs(dx), Math.abs(dy)) + 199) / 200);
         int px = 0, py = 0;
         for (int i = 1; i <= steps; i++) {
-            int tx = Math.round(fx * i / steps);
-            int ty = Math.round(fy * i / steps);
+            int tx = dx * i / steps;
+            int ty = dy * i / steps;
             wh.mouseEvent(MouseEventFlags.MOVE, tx - px, ty - py, 0);
             px = tx;
             py = ty;
@@ -827,9 +827,6 @@ public class TouchpadView extends View {
         gameCursorX = -1;
         gameCursorY = -1;
     }
-
-
-
 
     // --- AutoTuner: программный тап ---
     public void injectTap(float viewX, float viewY, int holdMs) {
