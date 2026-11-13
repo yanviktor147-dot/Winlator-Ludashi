@@ -207,7 +207,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
     private short taskAffinityMaskWoW64 = 0;
     private String wineCpuTopologyValue = "";
     private int frameRatingWindowId = -1;
-    // --- AutoTuner 锌芯谢褟 ---
+    // --- AutoTuner поля ---
 private AutoTuner autoTuner;
 private android.widget.TextView autoTunerFpsView;
 private final Handler autoTunerHandler = new Handler(Looper.getMainLooper());
@@ -627,7 +627,7 @@ private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordi
     preloaderDialog.closeOnUiThread();
     winStarted[0] = true;
 
-    // --- AutoTuner: 褋褌邪褉褌 蟹邪屑械褉邪 锌芯褋谢械 蟹邪锌褍褋泻邪 懈谐褉褘 ---
+    // --- AutoTuner: старт замера после запуска игры ---
     if (autoTuner != null) autoTuner.onWinStarted();
     if (classicHud != null) classicHud.enableForAutoTuner();
 }
@@ -787,7 +787,7 @@ private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordi
     }
 
         private void handleCapturedPointer(MotionEvent event) {
-        // --- AutoTuner: 蟹邪锌懈褋褜 泻谢懈泻芯胁 锌褉懈 蟹邪褏胁邪褔械薪薪芯屑 泻褍褉褋芯褉械 ---
+        // --- AutoTuner: запись кликов при захваченном курсоре ---
         if (isRecordingMacro
                 && event.getAction() == MotionEvent.ACTION_BUTTON_PRESS
                 && event.getActionButton() == MotionEvent.BUTTON_PRIMARY
@@ -958,7 +958,7 @@ private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordi
         editor.putInt(playCountKey, playCount);
         editor.apply();
     }
-    // --- AutoTuner: 锌械褉械蟹邪锌褍褋泻 斜械蟹 胁褘褏芯写邪 胁 谐谢邪胁薪芯械 屑械薪褞 ---
+    // --- AutoTuner: перезапуск без выхода в главное меню ---
 public void restartForAutoTuner() {
     if (!exiting.compareAndSet(false, true)) return;
 
@@ -1640,6 +1640,7 @@ if (ownsPrefixLease && environment == null && container != null) {
         touchpadView = new TouchpadView(this, xServer, timeoutHandler, hideControlsRunnable);
         touchpadView.setSensitivity(globalCursorSpeed);
         touchpadView.setMouseEnabled(!isMouseDisabled);
+
         View.OnCapturedPointerListener capturedPointerListener = new View.OnCapturedPointerListener() {
             @Override
             public boolean onCapturedPointer(View view, MotionEvent event) {
@@ -1723,50 +1724,43 @@ if (ownsPrefixLease && environment == null && container != null) {
     setupSidebarHudControls();
     setupSidebarGraphicsControls();
 
-    // --- AutoTuner: 芯胁械褉谢械泄 ---
+    // --- AutoTuner: оверлей ---
     createAutoTunerOverlay(rootView);
 }
-// --- AutoTuner: 芯胁械褉谢械泄 懈 屑邪泻褉芯褋褘 ---
+// --- AutoTuner: оверлей и макросы ---
 private void createAutoTunerOverlay(FrameLayout rootView) {
     autoTunerFpsView = new android.widget.TextView(this);
-    autoTunerFpsView.setText("小褉械写薪懈泄 FPS: 0.0");
+    autoTunerFpsView.setText("Средний FPS: 0.0");
     autoTunerFpsView.setTextColor(Color.GREEN);
     autoTunerFpsView.setTextSize(20);
     autoTunerFpsView.setBackgroundColor(Color.parseColor("#80000000"));
     autoTunerFpsView.setPadding(30, 20, 30, 20);
 
     FrameLayout.LayoutParams fpsParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
     fpsParams.gravity = Gravity.TOP | Gravity.START;
     fpsParams.leftMargin = 50;
     fpsParams.topMargin = 50;
     rootView.addView(autoTunerFpsView, fpsParams);
 
-    
-    btnTestClick = new android.widget.Button(this);
-    btnTestClick.setText("鈻讹笍 袙芯褋锌褉芯懈蟹胁械褋褌懈");
-    btnTestClick.setTextSize(12);
-    FrameLayout.LayoutParams btn2Params = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-    btn2Params.gravity = Gravity.TOP | Gravity.END;
-    btn2Params.rightMargin = 50;
-    btn2Params.topMargin = 250;
     btnCaptureClick = new android.widget.Button(this);
-    btnCaptureClick.setText("馃摳 袟邪锌懈褋邪褌褜 泻谢懈泻");
+    btnCaptureClick.setText("📸 Запись");
     btnCaptureClick.setTextSize(12);
-    FrameLayout.LayoutParams btn1Params = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-    btn1Params.gravity = Gravity.TOP | Gravity.END;
-    btn1Params.rightMargin = 50;
-    btn1Params.topMargin = 150;
-    rootView.addView(btnCaptureClick, btn1Params);
+    FrameLayout.LayoutParams btnRecParams = new FrameLayout.LayoutParams(
+    FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    btnRecParams.gravity = Gravity.TOP | Gravity.END;
+    btnRecParams.rightMargin = 50;
+    btnRecParams.topMargin = 150;
+    rootView.addView(btnCaptureClick, btnRecParams);
     btnCaptureClick.setOnClickListener(v -> toggleMacroRecording(rootView));
 
+    startAutoTunerLoop();
+
     btnTestClick = new android.widget.Button(this);
-    btnTestClick.setText("鈻讹笍 袙芯褋锌褉芯懈蟹胁械褋褌懈");
+    btnTestClick.setText("▶️ Воспроизвести");
     btnTestClick.setTextSize(12);
     FrameLayout.LayoutParams btn2Params = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
     btn2Params.gravity = Gravity.TOP | Gravity.END;
     btn2Params.rightMargin = 50;
     btn2Params.topMargin = 250;
@@ -1776,27 +1770,25 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
         if (touchpadView != null) {
             touchpadView.resetGameCursorSync();
             touchpadView.runLineTest();
-            Toast.makeText(this, "LINE TEST 蟹邪锌褍褖械薪: 6 褕邪谐芯胁 锌芯 100px", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "LINE TEST запущен: 6 шагов по 100px", Toast.LENGTH_SHORT).show();
         }
         return true;
     });
-
-    startAutoTunerLoop();
     }
 
     private void playMacro() {
         try {
             File file = new File(COORD_FILE_PATH);
-            String info = "肖邪泄谢:\n" + file.getAbsolutePath()
-                    + "\n小褍褖械褋褌胁褍械褌: " + file.exists()
-                    + "\n袪邪蟹屑械褉: " + file.length() + " 斜邪泄褌";
+            String info = "Файл:\n" + file.getAbsolutePath()
+                    + "\nСуществует: " + file.exists()
+                    + "\nРазмер: " + file.length() + " байт";
             Log.d("AutoTuner", info.replace("\n", " | "));
             Toast.makeText(this, info, Toast.LENGTH_LONG).show();
             if (!file.exists() || file.length() == 0) {
-                Toast.makeText(this, "鉂� 袦邪泻褉芯褋 锌褍褋褌 懈谢懈 薪械 薪邪泄写械薪!", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "❌ Макрос пуст или не найден!", Toast.LENGTH_LONG).show();
                 return;
             }
-        // --- AutoTuner: 褋斜褉芯褋 褋懈薪褏褉芯薪懈蟹邪褑懈懈 懈谐褉芯胁芯谐芯 泻褍褉褋芯褉邪 锌械褉械写 胁芯褋锌褉芯懈蟹胁械写械薪懈械屑 ---
+        // --- AutoTuner: сброс синхронизации игрового курсора перед воспроизведением ---
         if (touchpadView != null) touchpadView.resetGameCursorSync();
         // -----------------------------------------------------------------------------
 
@@ -1821,41 +1813,41 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
             }
         }
         reader.close();
-        Toast.makeText(this, "鉁� 袙芯褋锌褉芯懈蟹胁械写械薪懈械 " + stepCount + " 泻谢懈泻芯胁...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "✅ Воспроизведение " + stepCount + " кликов...", Toast.LENGTH_SHORT).show();
     } catch (Exception e) {
         Log.e("AutoTuner", "Macro error", e);
-        Toast.makeText(this, "袨褕懈斜泻邪: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Ошибка: " + e.getMessage(), Toast.LENGTH_LONG).show();
     }
 }
 
 
 private void toggleMacroRecording(FrameLayout rootView) {
     if (isRecordingMacro) {
-        // --- 小孝袨袩 ---
+        // --- СТОП ---
         isRecordingMacro = false;
-        btnCaptureClick.setText("馃摳 袟邪锌懈褋褜");
+        btnCaptureClick.setText("📸 Запись");
 
         if (touchpadView != null) {
             touchpadView.setMacroRecorderListener(null);
         }
 
         File file = new File(COORD_FILE_PATH);
-        String info = "肖邪泄谢: " + file.getAbsolutePath() + "\n袪邪蟹屑械褉: " + file.length() + " 斜邪泄褌";
-        Log.d("AutoTuner", "袟邪锌懈褋褜 芯褋褌邪薪芯胁谢械薪邪. " + info.replace("\n", " "));
-        Toast.makeText(this, "袟邪锌懈褋褜 芯褋褌邪薪芯胁谢械薪邪!\n" + info, Toast.LENGTH_LONG).show();
+        String info = "Файл: " + file.getAbsolutePath() + "\nРазмер: " + file.length() + " байт";
+        Log.d("AutoTuner", "Запись остановлена. " + info.replace("\n", " "));
+        Toast.makeText(this, "Запись остановлена!\n" + info, Toast.LENGTH_LONG).show();
     } else {
-        // --- 小孝袗袪孝 ---
+        // --- СТАРТ ---
         isRecordingMacro = true;
-        btnCaptureClick.setText("鈴� 小褌芯锌");
+        btnCaptureClick.setText("⏹ Стоп");
         lastMacroClickTime = System.currentTimeMillis();
 
         File file = new File(COORD_FILE_PATH);
         if (file.exists()) {
             boolean deleted = file.delete();
-            Log.d("AutoTuner", "小褌邪褉褘泄 褎邪泄谢 褍写邪谢械薪: " + deleted);
+            Log.d("AutoTuner", "Старый файл удален: " + deleted);
         }
 
-        Toast.makeText(this, "孝邪锌邪泄 锌芯 泻薪芯锌泻邪屑 胁 懈谐褉械!\n肖邪泄谢: " + COORD_FILE_PATH, Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Тапай по кнопкам в игре!\nФайл: " + COORD_FILE_PATH, Toast.LENGTH_LONG).show();
 
         if (touchpadView != null) {
             touchpadView.setMacroRecorderListener((x, y) -> {
@@ -1880,7 +1872,7 @@ private void startAutoTunerLoop() {
                     float sum = 0;
                     for (float f : fpsHistory) sum += f;
                     float avg = sum / fpsHistory.size();
-                    autoTunerFpsView.setText(String.format(Locale.ENGLISH, "小褉械写薪懈泄 FPS: %.1f", avg));
+                    autoTunerFpsView.setText(String.format(Locale.ENGLISH, "Средний FPS: %.1f", avg));
                 }
             }
             autoTunerHandler.postDelayed(this, 1000);
@@ -1894,10 +1886,10 @@ private void saveMacroStep(int x, int y, long delay) {
         writer.write(x + "," + y + "," + delay + "\n");
         writer.close();
         Log.d("AutoTuner", "Recorded: " + x + "," + y + "," + delay);
-        Toast.makeText(this, "袟邪锌懈褋邪薪芯: X=" + x + ", Y=" + y, Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Записано: X=" + x + ", Y=" + y, Toast.LENGTH_SHORT).show();
     } catch (IOException e) {
         Log.e("AutoTuner", "Write error", e);
-        Toast.makeText(this, "袨褕懈斜泻邪 蟹邪锌懈褋懈: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Ошибка записи: " + e.getMessage(), Toast.LENGTH_LONG).show();
     }
 }
 
@@ -3428,7 +3420,7 @@ private void saveMacroStep(int x, int y, long delay) {
         }
     }
 
-    // --- 小胁邪泄锌 芯褌 谢械胁芯谐芯 泻褉邪褟 胁锌褉邪胁芯 芯褌泻褉褘胁邪械褌 斜芯泻芯胁褍褞 锌邪薪械谢褜 (胁屑械褋褌芯 4 锌邪谢褜褑械胁) ---
+    // --- Свайп от левого края вправо открывает боковую панель (вместо 4 пальцев) ---
     private float sidebarSwipeStartX = -1f, sidebarSwipeStartY = -1f;
     private boolean sidebarSwipeTracking = false;
     private static final float SIDEBAR_SWIPE_EDGE_PX = 80f;
@@ -3511,24 +3503,23 @@ private void saveMacroStep(int x, int y, long delay) {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // --- Esc 懈 泻谢邪胁懈邪褌褍褉薪褘泄 Back: 芯褌写邪褢屑 懈谐褉械, 薪械 写邪褢屑 芯褌泻褉褘褌褜 斜芯泻芯胁褍褕泻褍 ---
+                // --- Esc/Back: не даём системе превратить их в "Назад" ---
         int keyCode = event.getKeyCode();
-        boolean fromGamepad = ExternalController.isGameController(event.getDevice())
-                || event.isFromSource(InputDevice.SOURCE_GAMEPAD)
-                || event.isFromSource(InputDevice.SOURCE_JOYSTICK);
-        if ((keyCode == KeyEvent.KEYCODE_ESCAPE || keyCode == KeyEvent.KEYCODE_BACK) && !fromGamepad) {
+        boolean keyboardBack = keyCode == KeyEvent.KEYCODE_BACK
+                && (event.getFlags() & KeyEvent.FLAG_FALLBACK) != 0
+                && !event.isFromSource(InputDevice.SOURCE_GAMEPAD)
+                && !event.isFromSource(InputDevice.SOURCE_JOYSTICK)
+                && !ExternalController.isGameController(event.getDevice());
+        if (keyCode == KeyEvent.KEYCODE_ESCAPE || keyboardBack) {
             Log.d("AutoTuner", "KEY SWALLOW: code=" + keyCode + " flags=" + event.getFlags()
                     + " source=" + event.getSource());
-            if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN
-                    && drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                drawerLayout.closeDrawers();
-                return true;
+            if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
+                if (winHandler != null && winHandler.onKeyEvent(event)) return true;
+                if (xServer != null && xServer.keyboard.onKeyEvent(event)) return true;
             }
-            if (winHandler != null && winHandler.onKeyEvent(event)) return true;
-            if (xServer != null && xServer.keyboard.onKeyEvent(event)) return true;
-            return true; // 谐谢芯褌邪械屑: 懈薪邪褔械 褋懈褋褌械屑邪 锌褉械胁褉邪褌懈褌 褝褌芯 胁 "袧邪蟹邪写"
+            return true;
         }
-        // ------------------------------------------------------------------------
+        // -----------------------------------------------------------
 
         if (isSidebarKey(event)) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
