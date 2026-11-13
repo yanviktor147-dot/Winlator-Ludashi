@@ -31,6 +31,8 @@ public class TouchpadView extends View {
         // --- AutoTuner: модель позиции игрового курсора (относительный режим) ---
     private int gameCursorX = -1;
     private int gameCursorY = -1;
+        // --- AutoTuner: калибровка относительных дельт (макросы и LINE TEST) ---
+    public static float DELTA_CALIBRATION = 5.0f;
 
     private static final byte MAX_FINGERS = 4;
     private static final short MAX_TWO_FINGERS_SCROLL_DISTANCE = 350;
@@ -746,14 +748,15 @@ public class TouchpadView extends View {
         if (macroRecorderListener != null) macroRecorderListener.onTap(xServerX, xServerY);
     }
                     // --- AutoTuner: серия мелких дельт, чтобы Wine не обрезал большие скачки ---
+    
     private void sendRelativeMove(WinHandler wh, int dx, int dy) {
-        dx = Math.round(dx * DELTA_CALIBRATION);
-        dy = Math.round(dy * DELTA_CALIBRATION);
-        int steps = Math.max(1, (Math.max(Math.abs(dx), Math.abs(dy)) + 199) / 200);
+        int cdx = Math.round(dx * DELTA_CALIBRATION);
+        int cdy = Math.round(dy * DELTA_CALIBRATION);
+        int steps = Math.max(1, (Math.max(Math.abs(cdx), Math.abs(cdy)) + 199) / 200);
         int px = 0, py = 0;
         for (int i = 1; i <= steps; i++) {
-            int tx = dx * i / steps;
-            int ty = dy * i / steps;
+            int tx = cdx * i / steps;
+            int ty = cdy * i / steps;
             wh.mouseEvent(MouseEventFlags.MOVE, tx - px, ty - py, 0);
             px = tx;
             py = ty;
@@ -811,7 +814,7 @@ public class TouchpadView extends View {
             final int step = i;
             final int modelX = step * stepPx;
             postDelayed(() -> {
-                wh.mouseEvent(MouseEventFlags.MOVE, stepPx, 0, 0);
+                sendRelativeMove(wh, stepPx, 0);
                 gameCursorX = modelX;
                 // чёрный курсор встаёт на расчётную точку — ориентир для глаза
                 xServer.injectPointerWarp(modelX, markerY);
