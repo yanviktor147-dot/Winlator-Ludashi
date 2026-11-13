@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string-array name="builtin_decoder_entries">
+        <item>GStreamer</item>
+        <item>FFmpeg (winedmo)</item>
+    </string-array>
     <string-array name="screen_size_entries">
         <item>Custom</item>
         <item>640x360 (16:9)</item>
@@ -24,12 +28,10 @@
     </string-array>
     <string-array name="wrapper_graphics_driver_version_entries">
         <item>System</item>
-        <item>v863</item>
-        <item>turnip26.2.0</item>
+        <item>turnip27.0.0</item>
     </string-array>
     <string-array name="audio_driver_entries">
-        <item>ALSA</item>
-        <item>PulseAudio</item>
+        <item>Alsa-Oboe</item>
         <item>PulseAudio-GN</item>
     </string-array>
     <string-array name="binding_type_entries">
@@ -48,11 +50,8 @@
         <item>None</item>
     </string-array>
     <string-array name="dxvk_version_entries">
-        <item>1.11.1-sarek</item>
-        <item>1.10.3-arm64ec-async</item>
         <item>1.10.3</item>
         <item>2.3.1</item>
-        <item>2.3.1-arm64ec-gplasync</item>
     </string-array>
     <string-array name="dxvk_max_device_memory_entries">
         <item>0 (Default)</item>
@@ -131,13 +130,14 @@
         <item>Native (Windows)</item>
     </string-array>
     <string-array name="box64_version_entries">
+        <item>0.4.5</item>
         <item>0.4.2</item>
     </string-array>
     <string-array name="wowbox64_version_entries">
         <item>0.4.2</item>
     </string-array>
     <string-array name="fexcore_version_entries">
-        <item>2601</item>
+        <item>2611</item>
     </string-array>
     <string-array name="desktop_theme_entries">
         <item>Light</item>
@@ -312,7 +312,7 @@
         <item>Box64</item>
     </string-array>
     <string-array name="wine_entries">
-        <item>proton-9.0-arm64ec</item>
+        <item>proton-11.0-7-arm64ec</item>
     </string-array>
     <string-array name="vkbasalt_sharpness_entries">
         <item>None</item>
