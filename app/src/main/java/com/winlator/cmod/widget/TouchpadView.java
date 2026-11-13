@@ -752,15 +752,24 @@ public class TouchpadView extends View {
         if (macroRecorderListener != null) macroRecorderListener.onTap(xServerX, xServerY);
     }
     // --- AutoTuner: программный тап в координатах X-сервера ---
+        // --- AutoTuner: программный тап в координатах X-сервера ---
     public void injectTapAtXServer(int x, int y, int holdMs) {
         if (xServer.isRelativeMouseMovement()) {
-            xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, x, y, 0);
+            // относительный режим: MOVE воспринимает числа как дельты,
+            // поэтому считаем сдвиг от текущей позиции курсора до цели
+            int dx = x - xServer.pointer.getX();
+            int dy = y - xServer.pointer.getY();
+            xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, dx, dy, 0);
         } else {
             xServer.injectPointerWarp(x, y);
         }
-        xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
-        postDelayed(() -> xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT), holdMs);
+        // пауза, чтобы игра успела обработать перемещение до нажатия
+        postDelayed(() -> {
+            xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
+            postDelayed(() -> xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT), holdMs);
+        }, 60);
     }
+
 
     // --- AutoTuner: программный тап ---
     public void injectTap(float viewX, float viewY, int holdMs) {
