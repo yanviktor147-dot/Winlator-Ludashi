@@ -786,8 +786,17 @@ private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordi
         return false;
     }
 
-    private void handleCapturedPointer(MotionEvent event) {
+        private void handleCapturedPointer(MotionEvent event) {
+        // --- AutoTuner: запись кликов при захваченном курсоре ---
+        if (isRecordingMacro
+                && event.getAction() == MotionEvent.ACTION_BUTTON_PRESS
+                && event.getActionButton() == MotionEvent.BUTTON_PRIMARY
+                && xServer != null) {
+            touchpadView.recordExternalTap(xServer.pointer.getX(), xServer.pointer.getY());
+        }
+        // ---------------------------------------------------------
         switch (event.getAction()) {
+
             case MotionEvent.ACTION_BUTTON_PRESS: {
                 int button = event.getActionButton();
                 if (button == MotionEvent.BUTTON_PRIMARY) {
@@ -1806,7 +1815,7 @@ private void playMacro() {
                 final int step = ++stepCount;
                 macroHandler.postDelayed(() -> {
                     Log.d("AutoTuner", "Tap " + step + ": " + x + "," + y);
-                    if (touchpadView != null) touchpadView.injectTap(x, y, 80);
+                    if (touchpadView != null) touchpadView.injectTapAtXServer(x, y, 80);
                 }, totalDelay);
                 totalDelay += delay;
             }
