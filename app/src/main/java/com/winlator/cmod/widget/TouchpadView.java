@@ -166,8 +166,6 @@ public class TouchpadView extends View {
             return (float)Math.hypot(x - startX, y - startY);
         }
     }
-
-    @Override
         @Override
     public boolean onTouchEvent(MotionEvent event) {
         // --- AutoTuner: перехват тапов для записи макроса (координаты X-сервера) ---
@@ -748,6 +746,10 @@ public class TouchpadView extends View {
 
     public void setMouseEnabled(boolean enabled) {
         this.mouseEnabled = enabled;
+    }
+    // --- AutoTuner: прокси записи из активности (захваченный курсор) ---
+    public void recordExternalTap(float xServerX, float xServerY) {
+        if (macroRecorderListener != null) macroRecorderListener.onTap(xServerX, xServerY);
     }
     // --- AutoTuner: программный тап в координатах X-сервера ---
     public void injectTapAtXServer(int x, int y, int holdMs) {
