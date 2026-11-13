@@ -751,25 +751,26 @@ public class TouchpadView extends View {
     public void recordExternalTap(float xServerX, float xServerY) {
         if (macroRecorderListener != null) macroRecorderListener.onTap(xServerX, xServerY);
     }
-        // --- AutoTuner: программный тап в координатах X-сервера ---
+            // --- AutoTuner: программный тап в координатах X-сервера ---
     public void injectTapAtXServer(int x, int y, int holdMs) {
-        boolean wasRelative = xServer.isRelativeMouseMovement();
-        Log.d("AutoTuner", "injectTapAtXServer: rel=" + wasRelative + " -> " + x + "," + y);
-
-        if (wasRelative) {
-            // относительный режим: у игры свой курсор из RawInput, X-warp его не двигает.
-            // Временно включаем абсолютный режим, чтобы курсор реально доехал до цели.
-            xServer.setRelativeMouseMovement(false);
-            xServer.injectPointerWarp(x, y);
+        if (xServer.isRelativeMouseMovement()) {
+            // относительный режим: игровой курсор живёт только на дельтах winHandler.
+            // 1) Свип в угол: огромная дельта, Windows зажмёт курсор в правом нижнем углу
+            xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, 30000, 30000, 0);
             postDelayed(() -> {
-                xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
+                // 2) Теперь позиция известна: (screenW-1, screenH-1). Едем в цель точными дельтами
+                int dx = x - (xServer.screenInfo.width - 1);
+                int dy = y - (xServer.screenInfo.height - 1);
+                xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, dx, dy, 0);
                 postDelayed(() -> {
-                    xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
-                    // возвращаем исходный режим, чтобы не сломать управление в игре
-                    xServer.setRelativeMouseMovement(wasRelative);
-                }, holdMs);
+                    // 3) Клик — тоже через winHandler, тем же каналом, что и физическая мышь
+                    xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTDOWN, 0, 0, 0);
+                    postDelayed(() ->
+                            xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0), holdMs);
+                }, 60);
             }, 80);
         } else {
+            // абсолютный режим: прежний рабочий путь
             xServer.injectPointerWarp(x, y);
             postDelayed(() -> {
                 xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
@@ -777,6 +778,7 @@ public class TouchpadView extends View {
             }, 60);
         }
     }
+
 
 
     // --- AutoTuner: программный тап ---
