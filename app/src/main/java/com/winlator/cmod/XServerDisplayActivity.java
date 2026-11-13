@@ -1765,6 +1765,20 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
         }
         return true;
     });
+    }
+
+    private void playMacro() {
+        try {
+            File file = new File(COORD_FILE_PATH);
+            String info = "Файл:\n" + file.getAbsolutePath()
+                    + "\nСуществует: " + file.exists()
+                    + "\nРазмер: " + file.length() + " байт";
+            Log.d("AutoTuner", info.replace("\n", " | "));
+            Toast.makeText(this, info, Toast.LENGTH_LONG).show();
+            if (!file.exists() || file.length() == 0) {
+                Toast.makeText(this, "❌ Макрос пуст или не найден!", Toast.LENGTH_LONG).show();
+                return;
+            }
         // --- AutoTuner: сброс синхронизации игрового курсора перед воспроизведением ---
         if (touchpadView != null) touchpadView.resetGameCursorSync();
         // -----------------------------------------------------------------------------
