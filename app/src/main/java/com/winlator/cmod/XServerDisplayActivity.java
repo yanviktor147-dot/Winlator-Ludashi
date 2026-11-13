@@ -1800,6 +1800,11 @@ private void playMacro() {
             Toast.makeText(this, "❌ Макрос пуст или не найден!", Toast.LENGTH_LONG).show();
             return;
         }
+
+        // --- AutoTuner: сброс синхронизации игрового курсора перед воспроизведением ---
+        if (touchpadView != null) touchpadView.resetGameCursorSync();
+        // -----------------------------------------------------------------------------
+
         BufferedReader reader = new BufferedReader(new FileReader(file));
         String line;
         long totalDelay = 0;
@@ -1827,6 +1832,7 @@ private void playMacro() {
         Toast.makeText(this, "Ошибка: " + e.getMessage(), Toast.LENGTH_LONG).show();
     }
 }
+
 
 private void toggleMacroRecording(FrameLayout rootView) {
     if (isRecordingMacro) {
