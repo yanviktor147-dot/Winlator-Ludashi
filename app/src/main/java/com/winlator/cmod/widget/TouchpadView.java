@@ -751,23 +751,31 @@ public class TouchpadView extends View {
     public void recordExternalTap(float xServerX, float xServerY) {
         if (macroRecorderListener != null) macroRecorderListener.onTap(xServerX, xServerY);
     }
-    // --- AutoTuner: программный тап в координатах X-сервера ---
         // --- AutoTuner: программный тап в координатах X-сервера ---
     public void injectTapAtXServer(int x, int y, int holdMs) {
-        if (xServer.isRelativeMouseMovement()) {
-            // относительный режим: MOVE воспринимает числа как дельты,
-            // поэтому считаем сдвиг от текущей позиции курсора до цели
-            int dx = x - xServer.pointer.getX();
-            int dy = y - xServer.pointer.getY();
-            xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, dx, dy, 0);
+        boolean wasRelative = xServer.isRelativeMouseMovement();
+        Log.d("AutoTuner", "injectTapAtXServer: rel=" + wasRelative + " -> " + x + "," + y);
+
+        if (wasRelative) {
+            // относительный режим: у игры свой курсор из RawInput, X-warp его не двигает.
+            // Временно включаем абсолютный режим, чтобы курсор реально доехал до цели.
+            xServer.setRelativeMouseMovement(false);
+            xServer.injectPointerWarp(x, y);
+            postDelayed(() -> {
+                xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
+                postDelayed(() -> {
+                    xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
+                    // возвращаем исходный режим, чтобы не сломать управление в игре
+                    xServer.setRelativeMouseMovement(wasRelative);
+                }, holdMs);
+            }, 80);
         } else {
             xServer.injectPointerWarp(x, y);
+            postDelayed(() -> {
+                xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
+                postDelayed(() -> xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT), holdMs);
+            }, 60);
         }
-        // пауза, чтобы игра успела обработать перемещение до нажатия
-        postDelayed(() -> {
-            xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
-            postDelayed(() -> xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT), holdMs);
-        }, 60);
     }
 
 
