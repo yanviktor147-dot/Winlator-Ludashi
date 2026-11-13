@@ -755,32 +755,47 @@ public class TouchpadView extends View {
     public void recordExternalTap(float xServerX, float xServerY) {
         if (macroRecorderListener != null) macroRecorderListener.onTap(xServerX, xServerY);
     }
-                // --- AutoTuner: программный тап в координатах X-сервера ---
+                    // --- AutoTuner: серия мелких дельт, чтобы Wine не обрезал большие скачки ---
+    private void sendRelativeMove(WinHandler wh, int dx, int dy) {
+        int steps = Math.max(1, (Math.max(Math.abs(dx), Math.abs(dy)) + 199) / 200);
+        int px = 0, py = 0;
+        for (int i = 1; i <= steps; i++) {
+            int tx = dx * i / steps;
+            int ty = dy * i / steps;
+            wh.mouseEvent(MouseEventFlags.MOVE, tx - px, ty - py, 0);
+            px = tx;
+            py = ty;
+        }
+    }
+
+    // --- AutoTuner: программный тап в координатах X-сервера ---
     public void injectTapAtXServer(int x, int y, int holdMs) {
         if (xServer.isRelativeMouseMovement()) {
             WinHandler wh = xServer.getWinHandler();
-            // 1) Синхронизация: если позиция игрового курсора неизвестна —
-            //    зажимаем его в правый нижний угол, теперь она известна
+            // 1) Якорение в левый верхний угол: серия отрицательных дельт,
+            //    Windows зажмёт курсор в (0,0) — позиция становится известной
             if (gameCursorX < 0) {
-                wh.mouseEvent(MouseEventFlags.MOVE, 30000, 30000, 0);
-                gameCursorX = xServer.screenInfo.width - 1;
-                gameCursorY = xServer.screenInfo.height - 1;
+                sendRelativeMove(wh, -20000, -20000);
+                gameCursorX = 0;
+                gameCursorY = 0;
+                Log.d("AutoTuner", "anchor: game cursor -> 0,0");
             }
-            // 2) Ведём игровой курсор дельтами к цели
+            // 2) Ведём игровой курсор к цели теми же мелкими дельтами
             int dx = x - gameCursorX;
             int dy = y - gameCursorY;
-            if (dx != 0 || dy != 0) wh.mouseEvent(MouseEventFlags.MOVE, dx, dy, 0);
+            Log.d("AutoTuner", "tap: from=" + gameCursorX + "," + gameCursorY
+                    + " to=" + x + "," + y + " d=" + dx + "," + dy);
+            sendRelativeMove(wh, dx, dy);
             gameCursorX = x;
             gameCursorY = y;
-            // 3) Чёрный (серверный) курсор — на ту же точку, чтобы совпадали
+            // 3) Серверный курсор — на ту же точку (визуальная связка)
             xServer.injectPointerWarp(x, y);
-            // 4) Клик через winHandler — тем каналом, который игра слышит
+            // 4) Клик через winHandler
             postDelayed(() -> {
                 wh.mouseEvent(MouseEventFlags.LEFTDOWN, 0, 0, 0);
                 postDelayed(() -> wh.mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0), holdMs);
             }, 60);
         } else {
-            // абсолютный режим: прежний рабочий путь
             xServer.injectPointerWarp(x, y);
             postDelayed(() -> {
                 xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
