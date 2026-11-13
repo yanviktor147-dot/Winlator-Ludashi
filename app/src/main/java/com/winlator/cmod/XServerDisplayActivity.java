@@ -1097,7 +1097,6 @@ if (ownsPrefixLease && environment == null && container != null) {
 
     @Override
     public void onBackPressed() {
-        Log.d("AutoTuner", "onBackPressed called");
         if (environment != null) {
             if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {
                 drawerLayout.openDrawer(GravityCompat.START);
@@ -1743,6 +1742,15 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
     fpsParams.topMargin = 50;
     rootView.addView(autoTunerFpsView, fpsParams);
 
+    
+    btnTestClick = new android.widget.Button(this);
+    btnTestClick.setText("鈻讹笍 袙芯褋锌褉芯懈蟹胁械褋褌懈");
+    btnTestClick.setTextSize(12);
+    FrameLayout.LayoutParams btn2Params = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    btn2Params.gravity = Gravity.TOP | Gravity.END;
+    btn2Params.rightMargin = 50;
+    btn2Params.topMargin = 250;
     btnCaptureClick = new android.widget.Button(this);
     btnCaptureClick.setText("馃摳 袟邪锌懈褋邪褌褜 泻谢懈泻");
     btnCaptureClick.setTextSize(12);
@@ -1754,7 +1762,6 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
     rootView.addView(btnCaptureClick, btn1Params);
     btnCaptureClick.setOnClickListener(v -> toggleMacroRecording(rootView));
 
-    
     btnTestClick = new android.widget.Button(this);
     btnTestClick.setText("鈻讹笍 袙芯褋锌褉芯懈蟹胁械褋褌懈");
     btnTestClick.setTextSize(12);
@@ -1772,26 +1779,10 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
             Toast.makeText(this, "LINE TEST 蟹邪锌褍褖械薪: 6 褕邪谐芯胁 锌芯 100px", Toast.LENGTH_SHORT).show();
         }
         return true;
-
-    android.widget.Button btnAutoTune = new android.widget.Button(this);
-    btnAutoTune.setText("馃殌 孝械褋褌 袗胁褌芯");
-    btnAutoTune.setTextSize(12);
-    FrameLayout.LayoutParams btn3Params = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-    btn3Params.gravity = Gravity.TOP | Gravity.END;
-    btn3Params.rightMargin = 50;
-    btn3Params.topMargin = 350;
-    rootView.addView(btnAutoTune, btn3Params);
-
-    btnAutoTune.setOnClickListener(v -> {
-        if (autoTuner == null) {
-            autoTuner = new AutoTuner(this, container, shortcut, classicHud, touchpadView);
-        }
-        autoTuner.startAutoTuning();
     });
 
     startAutoTunerLoop();
-}
+    }
 
     private void playMacro() {
         try {
@@ -1805,7 +1796,6 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
                 Toast.makeText(this, "鉂� 袦邪泻褉芯褋 锌褍褋褌 懈谢懈 薪械 薪邪泄写械薪!", Toast.LENGTH_LONG).show();
                 return;
             }
-    });
         // --- AutoTuner: 褋斜褉芯褋 褋懈薪褏褉芯薪懈蟹邪褑懈懈 懈谐褉芯胁芯谐芯 泻褍褉褋芯褉邪 锌械褉械写 胁芯褋锌褉芯懈蟹胁械写械薪懈械屑 ---
         if (touchpadView != null) touchpadView.resetGameCursorSync();
         // -----------------------------------------------------------------------------
@@ -3438,43 +3428,48 @@ private void saveMacroStep(int x, int y, long delay) {
         }
     }
 
+    // --- 小胁邪泄锌 芯褌 谢械胁芯谐芯 泻褉邪褟 胁锌褉邪胁芯 芯褌泻褉褘胁邪械褌 斜芯泻芯胁褍褞 锌邪薪械谢褜 (胁屑械褋褌芯 4 锌邪谢褜褑械胁) ---
+    private float sidebarSwipeStartX = -1f, sidebarSwipeStartY = -1f;
+    private boolean sidebarSwipeTracking = false;
+    private static final float SIDEBAR_SWIPE_EDGE_PX = 80f;
+    private static final float SIDEBAR_SWIPE_MIN_DX = 150f;
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
-        if (isPaused && (drawerLayout == null || !drawerLayout.isDrawerOpen(GravityCompat.START))
-                && !com.winlator.cmod.ui.ThemedAlertHost.isShowing()
-                && (debugDialog == null || !debugDialog.isShowing())) return true;
-
-        // --- 小胁邪泄锌 芯褌 谢械胁芯谐芯 泻褉邪褟 胁锌褉邪胁芯 芯褌泻褉褘胁邪械褌 斜芯泻芯胁褍褞 锌邪薪械谢褜 ---
         if (drawerLayout != null) {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    swipeStartX = event.getX();
-                    swipeStartY = event.getY();
-                    swipeCandidate = swipeStartX <= 80f;
+                    sidebarSwipeStartX = event.getX();
+                    sidebarSwipeStartY = event.getY();
+                    sidebarSwipeTracking = sidebarSwipeStartX < SIDEBAR_SWIPE_EDGE_PX;
                     break;
                 case MotionEvent.ACTION_MOVE:
-                    if (swipeCandidate && event.getX() - swipeStartX > 150f
-                            && Math.abs(event.getY() - swipeStartY) < 120f) {
-                        swipeCandidate = false;
-                        if (!drawerLayout.isDrawerOpen(GravityCompat.START))
-                            drawerLayout.openDrawer(GravityCompat.START);
-                        return true; // 卸械褋褌 褋褗械写邪械屑 鈥� 胁 懈谐褉褍 屑褘褕褜 薪械 褍褏芯写懈褌
+                    if (sidebarSwipeTracking) {
+                        float dx = event.getX() - sidebarSwipeStartX;
+                        float dy = event.getY() - sidebarSwipeStartY;
+                        if (dx > SIDEBAR_SWIPE_MIN_DX && Math.abs(dy) < 120f) {
+                            sidebarSwipeTracking = false;
+                            if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                                drawerLayout.openDrawer(GravityCompat.START);
+                            }
+                            return true;
+                        } else if (dx < -50f || Math.abs(dy) > 150f) {
+                            sidebarSwipeTracking = false;
+                        }
                     }
-                    if (Math.abs(event.getY() - swipeStartY) >= 120f) swipeCandidate = false;
                     break;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    swipeCandidate = false;
+                    sidebarSwipeTracking = false;
+                    sidebarSwipeStartX = -1f;
                     break;
             }
         }
-        // -------------------------------------------------------------
-
+        if (isPaused && (drawerLayout == null || !drawerLayout.isDrawerOpen(GravityCompat.START))
+                && !com.winlator.cmod.ui.ThemedAlertHost.isShowing()
+                && (debugDialog == null || !debugDialog.isShowing())) return true;
         return super.dispatchTouchEvent(event);
     }
-
-    private float swipeStartX, swipeStartY;
-    private boolean swipeCandidate;
 
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
@@ -3516,20 +3511,24 @@ private void saveMacroStep(int x, int y, long delay) {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // --- Esc 懈 Back-褎芯谢斜褝泻 褋 泻谢邪胁懈邪褌褍褉褘: 芯褌写邪褢屑 懈谐褉械, 斜芯泻芯胁褍褞 锌邪薪械谢褜 薪械 芯褌泻褉褘胁邪械屑 ---
+        // --- Esc 懈 泻谢邪胁懈邪褌褍褉薪褘泄 Back: 芯褌写邪褢屑 懈谐褉械, 薪械 写邪褢屑 芯褌泻褉褘褌褜 斜芯泻芯胁褍褕泻褍 ---
         int keyCode = event.getKeyCode();
-        boolean isKeyboardBackFallback = keyCode == KeyEvent.KEYCODE_BACK
-                && (event.getFlags() & KeyEvent.FLAG_FALLBACK) != 0
-                && !event.isFromSource(InputDevice.SOURCE_GAMEPAD)
-                && !event.isFromSource(InputDevice.SOURCE_JOYSTICK);
-        if (keyCode == KeyEvent.KEYCODE_ESCAPE || isKeyboardBackFallback) {
+        boolean fromGamepad = ExternalController.isGameController(event.getDevice())
+                || event.isFromSource(InputDevice.SOURCE_GAMEPAD)
+                || event.isFromSource(InputDevice.SOURCE_JOYSTICK);
+        if ((keyCode == KeyEvent.KEYCODE_ESCAPE || keyCode == KeyEvent.KEYCODE_BACK) && !fromGamepad) {
             Log.d("AutoTuner", "KEY SWALLOW: code=" + keyCode + " flags=" + event.getFlags()
                     + " source=" + event.getSource());
+            if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN
+                    && drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                drawerLayout.closeDrawers();
+                return true;
+            }
             if (winHandler != null && winHandler.onKeyEvent(event)) return true;
             if (xServer != null && xServer.keyboard.onKeyEvent(event)) return true;
-            return true; // 谐谢芯褌邪械屑 胁 谢褞斜芯屑 褋谢褍褔邪械 鈥� 懈薪邪褔械 褋懈褋褌械屑邪 锌褉械胁褉邪褌懈褌 械褢 胁 "袧邪蟹邪写"
+            return true; // 谐谢芯褌邪械屑: 懈薪邪褔械 褋懈褋褌械屑邪 锌褉械胁褉邪褌懈褌 褝褌芯 胁 "袧邪蟹邪写"
         }
-        // ---------------------------------------------------------------------------------
+        // ------------------------------------------------------------------------
 
         if (isSidebarKey(event)) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
