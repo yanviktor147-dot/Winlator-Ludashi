@@ -803,6 +803,32 @@ public class TouchpadView extends View {
             }, 60);
         }
     }
+    // --- AutoTuner: линейный тест дельт — 6 шагов по +100px вправо от (0,0) ---
+    public void runLineTest() {
+        WinHandler wh = xServer.getWinHandler();
+        // якорение в левый верхний угол
+        sendRelativeMove(wh, -20000, -20000);
+        gameCursorX = 0;
+        gameCursorY = 0;
+        Log.d("AutoTuner", "LINE TEST: anchored at 0,0");
+
+        final int stepPx = 100;
+        final int markerY = 200; // горизонталь для теста в координатах X-сервера
+
+        for (int i = 1; i <= 6; i++) {
+            final int step = i;
+            final int modelX = step * stepPx;
+            postDelayed(() -> {
+                wh.mouseEvent(MouseEventFlags.MOVE, stepPx, 0, 0);
+                gameCursorX = modelX;
+                // чёрный курсор встаёт на расчётную точку — ориентир для глаза
+                xServer.injectPointerWarp(modelX, markerY);
+                Log.d("AutoTuner", "LINE TEST: step " + step
+                        + " sent +" + stepPx + " -> model x=" + modelX);
+            }, i * 600);
+        }
+        Log.d("AutoTuner", "LINE TEST: started, 6 steps x 100px, every 600ms");
+    }
 
     // Сброс синхронизации — вызывать перед началом воспроизведения макроса
     public void resetGameCursorSync() {
