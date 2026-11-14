@@ -1488,12 +1488,23 @@ if (autoTuner == null) {
     });
     autoTuner = new AutoTuner(this, container, shortcut, classicHud, touchpadView);
 }
-java.io.File tunerTrigger = new java.io.File(
-        android.os.Environment.getExternalStorageDirectory(), "Download/autotuner_start.txt");
-if (tunerTrigger.exists()) {
-    tunerTrigger.delete();
-    autoTuner.startAutoTuning();
-}
+// Триггер автотюнера: опрашиваем файл каждую секунду
+final Runnable tunerTriggerPoll = new Runnable() {
+    @Override
+    public void run() {
+        if (isFinishing() || isDestroyed()) return;
+        java.io.File trigger = new java.io.File("/sdcard/Download/autotuner_start.txt");
+        if (trigger.exists()) {
+            trigger.delete();
+            Log.d("AutoTuner", "Trigger file found — starting auto tuning");
+            autoTuner.startAutoTuning();
+        } else {
+            autoTunerHandler.postDelayed(this, 1000);
+        }
+    }
+};
+autoTunerHandler.postDelayed(tunerTriggerPoll, 1000);
+
 
         if (wineRequestHandler != null)
             wineRequestHandler.start();
