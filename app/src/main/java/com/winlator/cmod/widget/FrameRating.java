@@ -47,6 +47,12 @@ public class FrameRating extends FrameLayout implements Runnable {
     private volatile float outputFPS;
 
     private String lastKnownRenderer = null;
+        // --- AutoTuner display ---
+    private boolean tunerMode = false;
+    private float tunerSum = 0;
+    private int tunerCount = 0;
+    private long tunerLastUpdate = 0;
+    private static final long TUNER_UPDATE_INTERVAL_MS = 30000;
 
     public FrameRating(Context context, HashMap graphicsDriverConfig) {
         this(context, graphicsDriverConfig ,null);
@@ -169,6 +175,10 @@ public class FrameRating extends FrameLayout implements Runnable {
     @Override
     public void run() {
         if (!userEnabled) return;
+        if (tunerMode) return; // во время теста текстом управляет AutoTuner
+        if (getVisibility() == GONE) setVisibility(View.VISIBLE);
+
+        if (!userEnabled) return;
         if (getVisibility() == GONE) setVisibility(View.VISIBLE);
         tvFPS.setTextColor(defaultFpsColor);
         String base = String.format(Locale.ENGLISH, "%.1f", lastFPS);
@@ -231,5 +241,35 @@ public class FrameRating extends FrameLayout implements Runnable {
     public float getLastFps() {
         return lastFPS;
     }
+        public void startTunerDisplay() {
+        tunerMode = true;
+        tunerSum = 0;
+        tunerCount = 0;
+        tunerLastUpdate = SystemClock.elapsedRealtime();
+        if (!userEnabled) {
+            userEnabled = true;
+            post(() -> setVisibility(View.VISIBLE));
+        }
+        tvFPS.setTextColor(defaultFpsColor);
+        tvFPS.setText("Средний FPS: ...");
+    }
+
+    public void pushTunerSample(float fps) {
+        if (!tunerMode) return;
+        tunerSum += fps;
+        tunerCount++;
+        long now = SystemClock.elapsedRealtime();
+        if (now - tunerLastUpdate >= TUNER_UPDATE_INTERVAL_MS) {
+            tunerLastUpdate = now;
+            tvFPS.setText(String.format(Locale.ENGLISH, "Средний FPS: %.1f", tunerSum / tunerCount));
+        }
+    }
+
+    public void finishTunerDisplay(float finalAvg) {
+        if (!tunerMode) return;
+        tunerMode = false;
+        tvFPS.setText(String.format(Locale.ENGLISH, "Средний FPS: %.1f", finalAvg));
+    }
+
 
 }
