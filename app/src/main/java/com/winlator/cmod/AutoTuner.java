@@ -158,6 +158,8 @@ public class AutoTuner {
         Log.d(TAG, "Measuring FPS (20s)...");
         sumFps = 0;
         fpsCount = 0;
+                if (frameRating != null) frameRating.startTunerDisplay();
+
         measureStartTime = System.currentTimeMillis();
 
         final Runnable measureRunnable = new Runnable() {
@@ -168,6 +170,13 @@ public class AutoTuner {
                 if (frameRating != null) {
                     float fps = frameRating.getLastFps();
                     if (fps > 0) { sumFps += fps; fpsCount++; }
+                                    if (frameRating != null) {
+                    float fps = frameRating.getLastFps();
+                    if (fps > 0) {
+                        frameRating.pushTunerSample(fps);
+                        sumFps += fps;
+                        ...
+
                 }
                 if (fpsCount >= 20 || elapsed >= MEASURE_TIMEOUT_MS) {
                     if (fpsCount < 20) Log.w(TAG, "Watchdog: only " + fpsCount + " samples");
@@ -182,6 +191,8 @@ public class AutoTuner {
 
     private void finishMeasurement() {
         float avg = fpsCount > 0 ? (sumFps / fpsCount) : 0;
+        if (frameRating != null) frameRating.finishTunerDisplay(avg);
+
         TunerProfile profile = SessionState.candidates.get(SessionState.currentIndex);
         Log.d(TAG, "RESULT: " + profile.name + " = " + avg + " FPS (" + fpsCount + " samples)");
         SessionState.results.add(new Result(profile.name, avg));
