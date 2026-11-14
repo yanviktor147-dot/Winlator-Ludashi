@@ -627,9 +627,9 @@ private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordi
     winStarted[0] = true;
 
     // --- AutoTuner: старт замера после запуска игры ---
-    if (autoTuner != null) autoTuner.onWinStarted();
-    if (classicHud != null) classicHud.enableForAutoTuner();
-}
+if (autoTuner != null) autoTuner.onWinStarted();
+if (classicHud != null) runOnUiThread(() -> classicHud.enableForAutoTuner());
+
                 if (frameRatingWindowId == window.id) {
                     if (classicHud != null) classicHud.update();
                     if (modernHud != null) modernHud.onFrame();
@@ -1471,15 +1471,21 @@ if (ownsPrefixLease && environment == null && container != null) {
         environment.startEnvironmentComponents();
 
         winHandler.start();
-        if (autoTuner == null) {
+if (autoTuner == null) {
     if (classicHud == null) {
         // HUD выключен — создаём классический FPS-счётчик для замеров тюнера
         classicHud = new FrameRating(this, graphicsDriverConfig);
         classicHud.setVisibility(View.GONE);
-        FrameLayout hudRoot = findViewById(R.id.FLXServerDisplay);
-        if (hudRoot != null) hudRoot.addView(classicHud);
-        if (xServerView != null) xServerView.setFrameRating(classicHud);
     }
+    // addView и трогание разметки — только с главного потока
+    final FrameRating hudForTuner = classicHud;
+    runOnUiThread(() -> {
+        FrameLayout hudRoot = findViewById(R.id.FLXServerDisplay);
+        if (hudRoot != null && hudForTuner.getParent() == null) {
+            hudRoot.addView(hudForTuner);
+        }
+        if (xServerView != null) xServerView.setFrameRating(hudForTuner);
+    });
     autoTuner = new AutoTuner(this, container, shortcut, classicHud, touchpadView);
 }
 java.io.File tunerTrigger = new java.io.File(
