@@ -1095,15 +1095,26 @@ if (ownsPrefixLease && environment == null && container != null) {
         handler.removeCallbacks(savePlaytimeRunnable);
     }
 
-    @Override
+        @Override
     public void onBackPressed() {
-        if (environment != null) {
-            if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                drawerLayout.openDrawer(GravityCompat.START);
-            } else
-                drawerLayout.closeDrawers();
+        // --- Панель не открывается с клавиатуры: Back только закрывает ---
+        if (environment != null && drawerLayout != null
+                && drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawers();
         }
     }
+
+    private void openOrCloseSidebar() {
+        // --- Геймпад: как раньше, открывает и закрывает панель ---
+        if (environment != null && drawerLayout != null) {
+            if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                drawerLayout.openDrawer(GravityCompat.START);
+            } else {
+                drawerLayout.closeDrawers();
+            }
+        }
+    }
+
 
     private boolean ownsPrefixLease;
     private boolean exclusiveInputBusy;
@@ -3521,11 +3532,12 @@ private void saveMacroStep(int x, int y, long delay) {
         }
         // -----------------------------------------------------------
 
-        if (isSidebarKey(event)) {
+                if (isSidebarKey(event)) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
-                onBackPressed();
+                openOrCloseSidebar();
             return true;
         }
+
 
         if (inputControlsView != null && inputControlsView.onKeyEvent(event)) return true;
         if (winHandler != null && winHandler.onKeyEvent(event)) return true;
