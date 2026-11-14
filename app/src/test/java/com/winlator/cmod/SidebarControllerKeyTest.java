@@ -12,10 +12,13 @@ import static org.junit.Assert.*;
 
 @RunWith(RobolectricTestRunner.class)
 public class SidebarControllerKeyTest {
-    public static class SidebarActivity extends XServerDisplayActivity {
+        public static class SidebarActivity extends XServerDisplayActivity {
         int toggles;
-        @Override public void onBackPressed() { toggles++; }
+        @Override public void openOrCloseSidebar() { toggles++; }
     }
+
+    @Test public void controllerBackOpensOnceAndConsumesItsRelease() {
+
 
     @Test public void controllerBackOpensOnceAndConsumesItsRelease() {
         SidebarActivity activity = Robolectric.buildActivity(SidebarActivity.class).get();
