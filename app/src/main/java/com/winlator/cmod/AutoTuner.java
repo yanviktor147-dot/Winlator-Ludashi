@@ -8,6 +8,7 @@ import android.widget.Toast;
 
 import com.winlator.cmod.container.Container;
 import com.winlator.cmod.container.Shortcut;
+import com.winlator.cmod.fexcore.FEXCorePreset;
 import com.winlator.cmod.widget.FrameRating;
 import com.winlator.cmod.widget.TouchpadView;
 
@@ -20,9 +21,8 @@ import java.util.List;
 public class AutoTuner {
     private static final String TAG = "AutoTuner";
     private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordinates.txt";
-       private static final long SAMPLE_INTERVAL_MS = 1000;
+    private static final long SAMPLE_INTERVAL_MS = 1000;
     private static final long MEASURE_DURATION_MS = 90000; // длительность теста, подберём 60–120
-
 
     private static class SessionState {
         static boolean isRunning = false;
@@ -33,12 +33,15 @@ public class AutoTuner {
 
     public static boolean isRunning() { return SessionState.isRunning; }
 
-    public static class TunerProfile {
-        String name;
-        String box64Preset;
-        String screenSize;
-        public TunerProfile(String name, String box64Preset, String screenSize) {
-            this.name = name; this.box64Preset = box64Preset; this.screenSize = screenSize;
+    private static class TunerProfile {
+        final String name;
+        final String fexPreset;
+        final String screenSize;
+
+        TunerProfile(String name, String fexPreset, String screenSize) {
+            this.name = name;
+            this.fexPreset = fexPreset;
+            this.screenSize = screenSize;
         }
     }
 
@@ -77,9 +80,9 @@ public class AutoTuner {
         SessionState.currentIndex = 0;
         SessionState.isRunning = true;
 
-        SessionState.candidates.add(new TunerProfile("Сток (Compatibility)", "COMPATIBILITY", "1280x720"));
-        SessionState.candidates.add(new TunerProfile("Performance", "PERFORMANCE", "1280x720"));
-        SessionState.candidates.add(new TunerProfile("Performance + 960x540", "PERFORMANCE", "960x540"));
+        SessionState.candidates.add(new TunerProfile("Compatibility", FEXCorePreset.COMPATIBILITY, "1280x720"));
+        SessionState.candidates.add(new TunerProfile("Performance", FEXCorePreset.PERFORMANCE, "1280x720"));
+        SessionState.candidates.add(new TunerProfile("Performance + 960x540", FEXCorePreset.PERFORMANCE, "960x540"));
 
         applyProfileAndLaunch();
     }
@@ -91,10 +94,10 @@ public class AutoTuner {
         }
 
         TunerProfile profile = SessionState.candidates.get(SessionState.currentIndex);
-        Log.d(TAG, "Apply: " + profile.name + " / " + profile.box64Preset + " / " + profile.screenSize);
+        Log.d(TAG, "Apply: " + profile.name + " / fex=" + profile.fexPreset + " / " + profile.screenSize);
 
         if (shortcut != null) {
-            shortcut.putExtra("box64Preset", profile.box64Preset);
+            shortcut.putExtra("fexcorePreset", profile.fexPreset);
             shortcut.putExtra("screenSize", profile.screenSize);
             shortcut.saveData();
         }
@@ -156,7 +159,7 @@ public class AutoTuner {
         }
     }
 
-        private void startMeasurement() {
+    private void startMeasurement() {
         Log.d(TAG, "Measuring FPS (" + (MEASURE_DURATION_MS / 1000) + "s)...");
         sumFps = 0;
         fpsCount = 0;
@@ -192,7 +195,7 @@ public class AutoTuner {
         handler.post(measureRunnable);
     }
 
-        private void finishMeasurement() {
+    private void finishMeasurement() {
         float avg = fpsCount > 0 ? (sumFps / fpsCount) : 0;
         if (frameRating != null) frameRating.finishTunerDisplay(avg);
         TunerProfile profile = SessionState.candidates.get(SessionState.currentIndex);
@@ -201,7 +204,6 @@ public class AutoTuner {
         SessionState.currentIndex++;
         handler.postDelayed(this::applyProfileAndLaunch, 3000);
     }
-
 
     private void finishTuning() {
         SessionState.isRunning = false;
@@ -217,7 +219,7 @@ public class AutoTuner {
                     + " (" + best.averageFps + " FPS)", Toast.LENGTH_LONG).show();
             for (TunerProfile p : SessionState.candidates) {
                 if (p.name.equals(best.profileName) && shortcut != null) {
-                    shortcut.putExtra("box64Preset", p.box64Preset);
+                    shortcut.putExtra("fexcorePreset", p.fexPreset);
                     shortcut.putExtra("screenSize", p.screenSize);
                     shortcut.saveData();
                     break;
