@@ -152,7 +152,7 @@ public class AutoTuner {
                 }
             }
             reader.close();
-            handler.postDelayed(this::startMeasurement, totalDelay + 2000);
+            handler.postDelayed(this::startMeasurement, totalDelay + 15000);
         } catch (Exception e) {
             Log.e(TAG, "Macro error", e);
             startMeasurement();
