@@ -154,13 +154,12 @@ public class AutoTuner {
         }
     }
 
-    private void startMeasurement() {
-        Log.d(TAG, "Measuring FPS (20s)...");
+        private void startMeasurement() {
+        Log.d(TAG, "Measuring FPS (" + (MEASURE_DURATION_MS / 1000) + "s)...");
         sumFps = 0;
         fpsCount = 0;
-                if (frameRating != null) frameRating.startTunerDisplay();
-
         measureStartTime = System.currentTimeMillis();
+        if (frameRating != null) frameRating.startTunerDisplay();
 
         final Runnable measureRunnable = new Runnable() {
             @Override
@@ -169,36 +168,38 @@ public class AutoTuner {
                 long elapsed = System.currentTimeMillis() - measureStartTime;
                 if (frameRating != null) {
                     float fps = frameRating.getLastFps();
-                    if (fps > 0) { sumFps += fps; fpsCount++; }
-                                    if (frameRating != null) {
-                    float fps = frameRating.getLastFps();
                     if (fps > 0) {
                         frameRating.pushTunerSample(fps);
                         sumFps += fps;
-                        ...
-
+                        fpsCount++;
+                        if (fpsCount % 30 == 0) { // промежуточный итог раз в ~30 секунд
+                            float interim = sumFps / fpsCount;
+                            Log.d(TAG, "INTERIM: " + (elapsed / 1000) + "s, avg="
+                                    + interim + " FPS (" + fpsCount + " samples)");
+                        }
+                    }
                 }
-                if (fpsCount >= 20 || elapsed >= MEASURE_TIMEOUT_MS) {
-                    if (fpsCount < 20) Log.w(TAG, "Watchdog: only " + fpsCount + " samples");
+                if (elapsed >= MEASURE_DURATION_MS) {
+                    if (fpsCount < 10) Log.w(TAG, "Watchdog: only " + fpsCount + " samples");
                     finishMeasurement();
                 } else {
-                    handler.postDelayed(this, 1000);
+                    handler.postDelayed(this, SAMPLE_INTERVAL_MS);
                 }
             }
         };
         handler.post(measureRunnable);
     }
 
-    private void finishMeasurement() {
+        private void finishMeasurement() {
         float avg = fpsCount > 0 ? (sumFps / fpsCount) : 0;
         if (frameRating != null) frameRating.finishTunerDisplay(avg);
-
         TunerProfile profile = SessionState.candidates.get(SessionState.currentIndex);
         Log.d(TAG, "RESULT: " + profile.name + " = " + avg + " FPS (" + fpsCount + " samples)");
         SessionState.results.add(new Result(profile.name, avg));
         SessionState.currentIndex++;
         handler.postDelayed(this::applyProfileAndLaunch, 3000);
     }
+
 
     private void finishTuning() {
         SessionState.isRunning = false;
