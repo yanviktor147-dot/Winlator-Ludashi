@@ -20,7 +20,9 @@ import java.util.List;
 public class AutoTuner {
     private static final String TAG = "AutoTuner";
     private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordinates.txt";
-    private static final int MEASURE_TIMEOUT_MS = 30000;
+       private static final long SAMPLE_INTERVAL_MS = 1000;
+    private static final long MEASURE_DURATION_MS = 90000; // длительность теста, подберём 60–120
+
 
     private static class SessionState {
         static boolean isRunning = false;
