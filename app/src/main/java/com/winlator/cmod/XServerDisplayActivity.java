@@ -158,6 +158,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
     public static int NOTIFICATION_ID = -1;
     private XServerRendererView xServerView;
     private InputControlsView inputControlsView;
+    private AutoTuner autoTuner;
     private TouchpadView touchpadView;
     private XEnvironment environment;
     private DrawerLayout drawerLayout;
@@ -207,8 +208,6 @@ public class XServerDisplayActivity extends AppCompatActivity {
     private short taskAffinityMaskWoW64 = 0;
     private String wineCpuTopologyValue = "";
     private int frameRatingWindowId = -1;
-    // --- AutoTuner поля ---
-private AutoTuner autoTuner;
 private android.widget.TextView autoTunerFpsView;
 private final Handler autoTunerHandler = new Handler(Looper.getMainLooper());
 private final java.util.ArrayList<Float> fpsHistory = new java.util.ArrayList<>();
@@ -1063,6 +1062,7 @@ public void restartForAutoTuner() {
     protected void onDestroy() {
         NotificationManagerCompat.from(this).cancel(NOTIFICATION_ID);
         runtimeStatusProbeStopped = true;
+        if (autoTuner != null) autoTuner.clearTimers();
         if (runtimeStatusProbeThread != null) runtimeStatusProbeThread.interrupt();
         if (winlatorLogcatLogger != null) {
             ProcessHelper.removeDebugCallback(winlatorLogcatLogger);
@@ -1471,6 +1471,23 @@ if (ownsPrefixLease && environment == null && container != null) {
         environment.startEnvironmentComponents();
 
         winHandler.start();
+        if (autoTuner == null) {
+    if (classicHud == null) {
+        // HUD выключен — создаём классический FPS-счётчик для замеров тюнера
+        classicHud = new FrameRating(this, graphicsDriverConfig);
+        classicHud.setVisibility(View.GONE);
+        FrameLayout hudRoot = findViewById(R.id.FLXServerDisplay);
+        if (hudRoot != null) hudRoot.addView(classicHud);
+        if (xServerView != null) xServerView.setFrameRating(classicHud);
+    }
+    autoTuner = new AutoTuner(this, container, shortcut, classicHud, touchpadView);
+}
+java.io.File tunerTrigger = new java.io.File(
+        android.os.Environment.getExternalStorageDirectory(), "Download/autotuner_start.txt");
+if (tunerTrigger.exists()) {
+    tunerTrigger.delete();
+    autoTuner.startAutoTuning();
+}
 
         if (wineRequestHandler != null)
             wineRequestHandler.start();
