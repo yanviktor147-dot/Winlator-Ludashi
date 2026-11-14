@@ -1105,7 +1105,7 @@ if (ownsPrefixLease && environment == null && container != null) {
         }
     }
 
-    private void openOrCloseSidebar() {
+    void openOrCloseSidebar() {
         // --- Геймпад: как раньше, открывает и закрывает панель ---
         if (environment != null && drawerLayout != null) {
             if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {
