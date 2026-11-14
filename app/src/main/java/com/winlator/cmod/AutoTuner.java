@@ -113,11 +113,34 @@ public class AutoTuner {
         }
     }
 
+        private int liveFpsStreak = 0;
+
     public void onWinStarted() {
         if (!SessionState.isRunning) return;
-        Log.d(TAG, "Game started, warming up 15s...");
-        handler.postDelayed(this::executeMacroAndMeasure, 15000);
+        Log.d(TAG, "Game window detected, waiting for live rendering (FPS > 10)...");
+        liveFpsStreak = 0;
+        pollForLiveRendering();
     }
+
+    private void pollForLiveRendering() {
+        handler.postDelayed(() -> {
+            if (!SessionState.isRunning) return;
+            float fps = frameRating != null ? frameRating.getLastFps() : 0;
+            if (fps >= 10f) {
+                liveFpsStreak++;
+                Log.d(TAG, "Live render candidate: " + fps + " FPS (streak " + liveFpsStreak + "/3)");
+                if (liveFpsStreak >= 3) {
+                    Log.d(TAG, "Live rendering confirmed, warming up 20s...");
+                    handler.postDelayed(this::executeMacroAndMeasure, 20000);
+                    return;
+                }
+            } else {
+                liveFpsStreak = 0;
+            }
+            pollForLiveRendering();
+        }, 1000);
+    }
+
 
     private void executeMacroAndMeasure() {
         Log.d(TAG, "Executing macro...");
