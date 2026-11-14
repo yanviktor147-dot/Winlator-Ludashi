@@ -629,7 +629,7 @@ private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordi
     // --- AutoTuner: старт замера после запуска игры ---
 if (autoTuner != null) autoTuner.onWinStarted();
 if (classicHud != null) runOnUiThread(() -> classicHud.enableForAutoTuner());
-
+}
                 if (frameRatingWindowId == window.id) {
                     if (classicHud != null) classicHud.update();
                     if (modernHud != null) modernHud.onFrame();
