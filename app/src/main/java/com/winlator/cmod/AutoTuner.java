@@ -8,7 +8,6 @@ import android.widget.Toast;
 
 import com.winlator.cmod.container.Container;
 import com.winlator.cmod.container.Shortcut;
-import com.winlator.cmod.fexcore.FEXCorePreset;
 import com.winlator.cmod.widget.FrameRating;
 import com.winlator.cmod.widget.TouchpadView;
 
@@ -22,7 +21,10 @@ public class AutoTuner {
     private static final String TAG = "AutoTuner";
     private static final String COORD_FILE_PATH = "/sdcard/Download/autotuner_coordinates.txt";
     private static final long SAMPLE_INTERVAL_MS = 1000;
-    private static final long MEASURE_DURATION_MS = 90000; // длительность теста, подберём 60–120
+    private static final long MEASURE_DURATION_MS = 23000; // 5с вперёд + 5с поворот + прыжки (12с) + 1с хвост
+    private static final int BASE_W = 1280;
+    private static final int BASE_H = 800;
+    private static final long KEY_TAP_MS = 150;
 
     private static class SessionState {
         static boolean isRunning = false;
@@ -62,6 +64,9 @@ public class AutoTuner {
     private float sumFps = 0;
     private int fpsCount = 0;
     private long measureStartTime = 0;
+    private int liveFpsStreak = 0;
+    private int liveFpsAttempts = 0;
+    private boolean measurementFinished = false;
 
     public AutoTuner(Context context, Container container, Shortcut shortcut,
                      FrameRating frameRating, TouchpadView touchpadView) {
@@ -80,9 +85,11 @@ public class AutoTuner {
         SessionState.currentIndex = 0;
         SessionState.isRunning = true;
 
-        SessionState.candidates.add(new TunerProfile("Compatibility", FEXCorePreset.COMPATIBILITY, "1280x720"));
-        SessionState.candidates.add(new TunerProfile("Performance", FEXCorePreset.PERFORMANCE, "1280x720"));
-        SessionState.candidates.add(new TunerProfile("Performance + 960x540", FEXCorePreset.PERFORMANCE, "960x540"));
+        // Кандидаты: Средний / Производительность / Extreme.
+        // Разрешение фиксированное 1280x800 для честного сравнения.
+        SessionState.candidates.add(new TunerProfile("Средний", "INTERMEDIATE", "1280x800"));
+        SessionState.candidates.add(new TunerProfile("Производительность", "PERFORMANCE", "1280x800"));
+        SessionState.candidates.add(new TunerProfile("Extreme", "EXTREME", "1280x800"));
 
         applyProfileAndLaunch();
     }
@@ -104,53 +111,65 @@ public class AutoTuner {
 
         Toast.makeText(appContext, "Тест " + (SessionState.currentIndex + 1)
                 + "/" + SessionState.candidates.size() + ": " + profile.name, Toast.LENGTH_SHORT).show();
+        Toast.makeText(appContext, "Применяю профиль, перезапускаю игру...", Toast.LENGTH_SHORT).show();
 
-        if (context instanceof XServerDisplayActivity) {
-            ((XServerDisplayActivity) context).restartForAutoTuner();
+        XServerDisplayActivity act = asActivity();
+        if (act != null) {
+            act.hideTunerPanel();
+            act.restartForAutoTuner();
         } else {
             Log.e(TAG, "Context is not XServerDisplayActivity, cannot restart");
             finishTuning();
         }
     }
 
-        private int liveFpsStreak = 0;
-
     public void onWinStarted() {
         if (!SessionState.isRunning) return;
         Log.d(TAG, "Game window detected, waiting for live rendering (FPS > 10)...");
         liveFpsStreak = 0;
-        pollForLiveRendering();
+        liveFpsAttempts = 0;
+        pollForLiveRendering(this::executeMacroAndMeasure, 20000);
     }
 
-    private void pollForLiveRendering() {
+    private void pollForLiveRendering(Runnable onConfirmed, long stabilizeMs) {
         handler.postDelayed(() -> {
             if (!SessionState.isRunning) return;
             float fps = frameRating != null ? frameRating.getLastFps() : 0;
+            liveFpsAttempts++;
             if (fps >= 10f) {
                 liveFpsStreak++;
                 Log.d(TAG, "Live render candidate: " + fps + " FPS (streak " + liveFpsStreak + "/3)");
                 if (liveFpsStreak >= 3) {
-                    Log.d(TAG, "Live rendering confirmed, warming up 20s...");
-                    handler.postDelayed(this::executeMacroAndMeasure, 20000);
+                    Log.d(TAG, "Live rendering confirmed, stabilizing " + (stabilizeMs / 1000) + "s...");
+                    handler.postDelayed(onConfirmed, stabilizeMs);
                     return;
                 }
             } else {
                 liveFpsStreak = 0;
             }
-            pollForLiveRendering();
+            if (liveFpsAttempts >= 120) {
+                Log.w(TAG, "Live render watchdog: forcing next step");
+                onConfirmed.run();
+                return;
+            }
+            pollForLiveRendering(onConfirmed, stabilizeMs);
         }, 1000);
     }
-
 
     private void executeMacroAndMeasure() {
         Log.d(TAG, "Executing macro...");
         try {
             File file = new File(COORD_FILE_PATH);
             if (!file.exists() || file.length() == 0) {
-                Log.e(TAG, "Macro file missing/empty");
-                startMeasurement();
+                Log.e(TAG, "Macro file missing/empty — skipping to intro skip");
+                injectEscTwice();
                 return;
             }
+            TunerProfile profile = SessionState.candidates.get(SessionState.currentIndex);
+            int[] size = parseScreenSize(profile.screenSize);
+            float scaleX = size[0] / (float) BASE_W;
+            float scaleY = size[1] / (float) BASE_H;
+
             BufferedReader reader = new BufferedReader(new FileReader(file));
             String line;
             long totalDelay = 0;
@@ -160,8 +179,8 @@ public class AutoTuner {
                 String[] parts = line.split(",");
                 if (parts.length >= 3) {
                     try {
-                        final int x = Integer.parseInt(parts[0].trim());
-                        final int y = Integer.parseInt(parts[1].trim());
+                        final int x = Math.round(Integer.parseInt(parts[0].trim()) * scaleX);
+                        final int y = Math.round(Integer.parseInt(parts[1].trim()) * scaleY);
                         final long delay = Long.parseLong(parts[2].trim());
                         final int step = ++stepCount;
                         handler.postDelayed(() -> {
@@ -175,17 +194,69 @@ public class AutoTuner {
                 }
             }
             reader.close();
-            handler.postDelayed(this::startMeasurement, totalDelay + 15000);
+            // После макроса: 5с на загрузку/заставку, затем пропускаем её Esc x2
+            handler.postDelayed(this::injectEscTwice, totalDelay + 5000);
         } catch (Exception e) {
             Log.e(TAG, "Macro error", e);
-            startMeasurement();
+            injectEscTwice();
         }
     }
 
+    private void injectEscTwice() {
+        Log.d(TAG, "Skipping intro: Esc x2 (interval 1s)...");
+        XServerDisplayActivity act = asActivity();
+        if (act == null) {
+            liveFpsStreak = 0;
+            liveFpsAttempts = 0;
+            pollForLiveRendering(this::startMovementScenario, 5000);
+            return;
+        }
+        act.tunerInjectEsc();
+        handler.postDelayed(act::tunerInjectEsc, 1000);
+        liveFpsStreak = 0;
+        liveFpsAttempts = 0;
+        handler.postDelayed(() -> pollForLiveRendering(this::startMovementScenario, 5000), 2500);
+    }
+
+    private void startMovementScenario() {
+        XServerDisplayActivity act = asActivity();
+        if (act == null) {
+            Log.e(TAG, "Activity lost — aborting test iteration");
+            SessionState.isRunning = false;
+            return;
+        }
+        Log.d(TAG, "=== MOVEMENT: forward 5s (W) ===");
+        startMeasurement();
+        act.tunerKeyHold(android.view.KeyEvent.KEYCODE_W, 5000);
+
+        handler.postDelayed(() -> {
+            if (!SessionState.isRunning) return;
+            Log.d(TAG, "=== MOVEMENT: rotate 5s (mouse) ===");
+            act.tunerRotate(5000);
+        }, 5000);
+
+        handler.postDelayed(() -> {
+            if (!SessionState.isRunning) return;
+            Log.d(TAG, "=== MOVEMENT: 5 jumps every 3s (Space) ===");
+            for (int i = 0; i < 5; i++) {
+                final int jump = i + 1;
+                handler.postDelayed(() -> {
+                    if (!SessionState.isRunning) return;
+                    Log.d(TAG, "Jump " + jump + "/5");
+                    XServerDisplayActivity a = asActivity();
+                    if (a != null) a.tunerKeyHold(android.view.KeyEvent.KEYCODE_SPACE, KEY_TAP_MS);
+                }, i * 3000L);
+            }
+        }, 10000);
+
+        handler.postDelayed(this::finishMeasurement, MEASURE_DURATION_MS);
+    }
+
     private void startMeasurement() {
-        Log.d(TAG, "Measuring FPS (" + (MEASURE_DURATION_MS / 1000) + "s)...");
+        Log.d(TAG, "Measuring FPS (sampling every " + (SAMPLE_INTERVAL_MS / 1000) + "s)...");
         sumFps = 0;
         fpsCount = 0;
+        measurementFinished = false;
         measureStartTime = System.currentTimeMillis();
         if (frameRating != null) frameRating.startTunerDisplay();
 
@@ -200,25 +271,22 @@ public class AutoTuner {
                         frameRating.pushTunerSample(fps);
                         sumFps += fps;
                         fpsCount++;
-                        if (fpsCount % 30 == 0) { // промежуточный итог раз в ~30 секунд
+                        if (fpsCount % 10 == 0) {
                             float interim = sumFps / fpsCount;
                             Log.d(TAG, "INTERIM: " + (elapsed / 1000) + "s, avg="
                                     + interim + " FPS (" + fpsCount + " samples)");
                         }
                     }
                 }
-                if (elapsed >= MEASURE_DURATION_MS) {
-                    if (fpsCount < 10) Log.w(TAG, "Watchdog: only " + fpsCount + " samples");
-                    finishMeasurement();
-                } else {
-                    handler.postDelayed(this, SAMPLE_INTERVAL_MS);
-                }
+                handler.postDelayed(this, SAMPLE_INTERVAL_MS);
             }
         };
         handler.post(measureRunnable);
     }
 
     private void finishMeasurement() {
+        if (!SessionState.isRunning || measurementFinished) return;
+        measurementFinished = true;
         float avg = fpsCount > 0 ? (sumFps / fpsCount) : 0;
         if (frameRating != null) frameRating.finishTunerDisplay(avg);
         TunerProfile profile = SessionState.candidates.get(SessionState.currentIndex);
@@ -245,9 +313,25 @@ public class AutoTuner {
                     shortcut.putExtra("fexcorePreset", p.fexPreset);
                     shortcut.putExtra("screenSize", p.screenSize);
                     shortcut.saveData();
+                    Log.d(TAG, "Winner applied: fex=" + p.fexPreset + " / " + p.screenSize);
                     break;
                 }
             }
+        }
+        XServerDisplayActivity act = asActivity();
+        if (act != null) act.onAutoTunerFinished();
+    }
+
+    private XServerDisplayActivity asActivity() {
+        return (context instanceof XServerDisplayActivity) ? (XServerDisplayActivity) context : null;
+    }
+
+    private int[] parseScreenSize(String s) {
+        try {
+            String[] p = s.split("x");
+            return new int[]{ Integer.parseInt(p[0]), Integer.parseInt(p[1]) };
+        } catch (Exception e) {
+            return new int[]{ BASE_W, BASE_H };
         }
     }
 
