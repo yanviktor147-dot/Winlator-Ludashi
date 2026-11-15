@@ -209,7 +209,11 @@ public class XServerDisplayActivity extends AppCompatActivity {
     private String wineCpuTopologyValue = "";
     private int frameRatingWindowId = -1;
 private final Handler autoTunerHandler = new Handler(Looper.getMainLooper());
-private android.widget.LinearLayout tunerPanel;
+private android.widget.LinearLayout tunerPromptView;
+private android.widget.TextView tunerPromptCountdownText;
+private android.widget.FrameLayout tunerPromptBarTrack;
+private android.view.View tunerPromptBarFill;
+private Runnable tunerPromptCountdown;
 private android.widget.Button btnCaptureClick;
 private android.widget.Button btnTestClick;
 private boolean isRecordingMacro = false;
@@ -1819,7 +1823,7 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
         return true;
     });
 
-    createTunerPanel(rootView);
+    createTunerPrompt(rootView);
     createTunerStatusView(rootView);
 }
 
@@ -1938,81 +1942,119 @@ private int tunerDp(int v) {
     return Math.round(v * getResources().getDisplayMetrics().density);
 }
 
-private android.widget.Button createTunerPanelButton(String text) {
-    android.widget.Button b = new android.widget.Button(this);
-    b.setText(text);
-    b.setTextSize(13);
-    b.setMinWidth(0);
-    b.setMinHeight(0);
-    b.setMinimumWidth(0);
-    b.setMinimumHeight(0);
-    b.setTextColor(Color.WHITE);
-    b.setAllCaps(false);
-    b.setPadding(tunerDp(10), tunerDp(4), tunerDp(10), tunerDp(4));
+// --- AutoTuner: окно-приглашение с отсчётом (кнопок больше нет) ---
+private void createTunerPrompt(FrameLayout rootView) {
+    tunerPromptView = new android.widget.LinearLayout(this);
+    tunerPromptView.setOrientation(android.widget.LinearLayout.VERTICAL);
+    tunerPromptView.setGravity(Gravity.CENTER);
+    int pad = tunerDp(14);
+    tunerPromptView.setPadding(pad, pad, pad, pad);
     GradientDrawable bg = new GradientDrawable();
-    bg.setColor(Color.argb(150, 20, 60, 160));
-    bg.setCornerRadius(tunerDp(8));
-    bg.setStroke(2, Color.argb(255, 40, 110, 255));
-    b.setBackground(bg);
-    return b;
-}
+    bg.setColor(Color.argb(179, 0, 0, 30)); // фон ~70% прозрачности
+    bg.setCornerRadius(tunerDp(10));
+    bg.setStroke(3, Color.argb(255, 40, 110, 255)); // синяя рамка
+    tunerPromptView.setBackground(bg);
+    tunerPromptView.setClickable(true);
 
-private void createTunerPanel(FrameLayout rootView) {
-    tunerPanel = new android.widget.LinearLayout(this);
-    tunerPanel.setOrientation(android.widget.LinearLayout.VERTICAL);
-    tunerPanel.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
-    tunerPanel.setPadding(tunerDp(10), tunerDp(6), tunerDp(10), tunerDp(6));
-    GradientDrawable panelBg = new GradientDrawable();
-    panelBg.setColor(Color.argb(140, 0, 0, 0));
-    panelBg.setCornerRadius(tunerDp(10));
-    panelBg.setStroke(2, Color.argb(255, 40, 110, 255));
-    tunerPanel.setBackground(panelBg);
+    android.widget.TextView promptText = new android.widget.TextView(this);
+    promptText.setText("Для продолжения игры нажмите ещё раз.\nДля автонастройки дождитесь конца отсчёта.");
+    promptText.setTextColor(Color.argb(255, 80, 160, 255));
+    promptText.setTextSize(15);
+    promptText.setGravity(Gravity.CENTER);
+    tunerPromptView.addView(promptText);
 
-    android.widget.Button btnTune = createTunerPanelButton("Настроить игру");
-    btnTune.setOnClickListener(v -> {
-        try {
-            preferences.edit().putString("autotuner_trigger", "1").apply();
-            Log.d("AutoTuner", "Trigger flag set");
-        } catch (Exception e) {
-            Log.e("AutoTuner", "Failed to set trigger flag", e);
-        }
+    tunerPromptCountdownText = new android.widget.TextView(this);
+    tunerPromptCountdownText.setTextColor(Color.argb(255, 80, 160, 255));
+    tunerPromptCountdownText.setTextSize(18);
+    tunerPromptCountdownText.setTypeface(null, android.graphics.Typeface.BOLD);
+    tunerPromptCountdownText.setGravity(Gravity.CENTER);
+    android.widget.LinearLayout.LayoutParams cntLp = new android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+    cntLp.topMargin = tunerDp(8);
+    tunerPromptCountdownText.setLayoutParams(cntLp);
+    tunerPromptView.addView(tunerPromptCountdownText);
+
+    tunerPromptBarTrack = new android.widget.FrameLayout(this);
+    GradientDrawable trackBg = new GradientDrawable();
+    trackBg.setColor(Color.argb(70, 0, 0, 0));
+    tunerPromptBarTrack.setBackground(trackBg);
+    android.widget.LinearLayout.LayoutParams trackLp = new android.widget.LinearLayout.LayoutParams(
+            tunerDp(240), tunerDp(7));
+    trackLp.topMargin = tunerDp(8);
+    tunerPromptBarTrack.setLayoutParams(trackLp);
+
+    tunerPromptBarFill = new View(this);
+    GradientDrawable fillBg = new GradientDrawable();
+    fillBg.setColor(Color.argb(255, 40, 110, 255)); // синяя полоса заполнения
+    tunerPromptBarFill.setBackground(fillBg);
+    android.widget.FrameLayout.LayoutParams fillLp = new android.widget.FrameLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT);
+    tunerPromptBarFill.setLayoutParams(fillLp);
+    tunerPromptBarTrack.addView(tunerPromptBarFill);
+    tunerPromptView.addView(tunerPromptBarTrack);
+
+    // Тап по окну = продолжить игру обычным образом
+    tunerPromptView.setOnClickListener(v -> {
+        Log.d("AutoTuner", "Prompt tapped — continuing game normally");
         hideTunerPanel();
     });
-
-    android.widget.Button btnSkip = createTunerPanelButton("Пропустить");
-    btnSkip.setOnClickListener(v -> hideTunerPanel());
-
-    android.widget.LinearLayout.LayoutParams btnLp = new android.widget.LinearLayout.LayoutParams(
-            tunerDp(150), tunerDp(36));
-    btnTune.setLayoutParams(btnLp);
-    btnSkip.setLayoutParams(new android.widget.LinearLayout.LayoutParams(btnLp));
-
-    tunerPanel.addView(btnTune);
-    View spacer = new View(this);
-    spacer.setMinimumHeight(tunerDp(6));
-    tunerPanel.addView(spacer);
-    tunerPanel.addView(btnSkip);
 
     FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
     lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
     lp.topMargin = tunerDp(16);
-    rootView.addView(tunerPanel, lp);
-    makeTunerViewDraggable(tunerPanel);
+    rootView.addView(tunerPromptView, lp);
+    makeTunerViewDraggable(tunerPromptView);
+    tunerPromptView.setVisibility(View.GONE);
 
-    if (AutoTuner.isRunning()) tunerPanel.setVisibility(View.GONE);
+    if (!AutoTuner.isRunning()) showTunerPanel(); // запускаем отсчёт сразу при старте игры
 }
 
 public void showTunerPanel() {
-    if (tunerPanel != null) tunerPanel.setVisibility(View.VISIBLE);
+    if (AutoTuner.isRunning()) return;
+    if (tunerPromptView == null) return;
+    tunerPromptView.setVisibility(View.VISIBLE);
+    if (tunerPromptCountdown != null) autoTunerHandler.removeCallbacks(tunerPromptCountdown);
+    final int total = 5; // секунд до запуска автонастройки
+    tunerPromptCountdown = new Runnable() {
+        private int remaining = total;
+        @Override
+        public void run() {
+            if (tunerPromptView == null || tunerPromptView.getVisibility() != View.VISIBLE) return;
+            if (remaining <= 0) {
+                Log.d("AutoTuner", "Countdown finished — starting auto tuning");
+                try {
+                    preferences.edit().putString("autotuner_trigger", "1").apply();
+                } catch (Exception e) {
+                    Log.e("AutoTuner", "Failed to set trigger flag", e);
+                }
+                hideTunerPanel();
+                return;
+            }
+            if (tunerPromptCountdownText != null)
+                tunerPromptCountdownText.setText("Автонастройка через " + remaining + " с");
+            int w = tunerPromptBarTrack.getWidth();
+            if (w > 0) {
+                android.widget.FrameLayout.LayoutParams flp =
+                        (android.widget.FrameLayout.LayoutParams) tunerPromptBarFill.getLayoutParams();
+                flp.width = Math.max(2, Math.round(w * remaining / (float) total));
+                tunerPromptBarFill.setLayoutParams(flp);
+            }
+            remaining--;
+            autoTunerHandler.postDelayed(this, 1000);
+        }
+    };
+    tunerPromptCountdown.run();
 }
 
 public void hideTunerPanel() {
-    if (tunerPanel != null) tunerPanel.setVisibility(View.GONE);
+    if (tunerPromptCountdown != null) autoTunerHandler.removeCallbacks(tunerPromptCountdown);
+    if (tunerPromptView != null) tunerPromptView.setVisibility(View.GONE);
 }
 
 public void onAutoTunerFinished() {
-    showTunerPanel();
+    // Игра закрывается сама после победителя — приглашение после финиша не нужно
 }
 
 // --- AutoTuner: программный ввод (Esc, клавиши, мышь) ---
