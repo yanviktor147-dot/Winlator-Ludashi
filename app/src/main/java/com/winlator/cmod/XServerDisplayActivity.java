@@ -1821,6 +1821,7 @@ private android.widget.Button createTunerPanelButton(String text) {
 private void createTunerPanel(FrameLayout rootView) {
     tunerPanel = new android.widget.LinearLayout(this);
     tunerPanel.setOrientation(android.widget.LinearLayout.VERTICAL);
+    tunerPanel.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
     tunerPanel.setPadding(tunerDp(10), tunerDp(6), tunerDp(10), tunerDp(6));
     GradientDrawable panelBg = new GradientDrawable();
     panelBg.setColor(Color.argb(140, 0, 0, 0));
@@ -1830,22 +1831,26 @@ private void createTunerPanel(FrameLayout rootView) {
 
     android.widget.Button btnTune = createTunerPanelButton("Настроить игру");
     btnTune.setOnClickListener(v -> {
-        preferences.edit().putBoolean("autotuner_trigger", true).apply();
-        Log.d("AutoTuner", "Trigger flag set");
+        try {
+            preferences.edit().putString("autotuner_trigger", "1").apply();
+            Log.d("AutoTuner", "Trigger flag set");
+        } catch (Exception e) {
+            Log.e("AutoTuner", "Failed to set trigger flag", e);
+        }
         hideTunerPanel();
     });
 
     android.widget.Button btnSkip = createTunerPanelButton("Пропустить");
     btnSkip.setOnClickListener(v -> hideTunerPanel());
-        btnTune.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+
+    android.widget.LinearLayout.LayoutParams btnLp = new android.widget.LinearLayout.LayoutParams(
             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
-    btnSkip.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
-            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+    btnTune.setLayoutParams(btnLp);
+    btnSkip.setLayoutParams(new android.widget.LinearLayout.LayoutParams(btnLp));
 
     tunerPanel.addView(btnTune);
-    android.view.View spacer = new android.view.View(this);
+    View spacer = new View(this);
     spacer.setMinimumHeight(tunerDp(6));
     tunerPanel.addView(spacer);
     tunerPanel.addView(btnSkip);
