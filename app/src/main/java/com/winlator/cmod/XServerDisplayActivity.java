@@ -1487,15 +1487,14 @@ if (autoTuner == null) {
     });
     autoTuner = new AutoTuner(this, container, shortcut, classicHud, touchpadView);
 }
-// Триггер автотюнера: опрашиваем файл каждую секунду
+// Триггер автотюнера: раз в секунду проверяем флаг запуска
 final Runnable tunerTriggerPoll = new Runnable() {
     @Override
     public void run() {
         if (isFinishing() || isDestroyed()) return;
-        java.io.File trigger = new java.io.File("/sdcard/Download/autotuner_start.txt");
-        if (trigger.exists()) {
-            trigger.delete();
-            Log.d("AutoTuner", "Trigger file found — starting auto tuning");
+        if (!AutoTuner.isRunning() && preferences.getBoolean("autotuner_trigger", false)) {
+            preferences.edit().putBoolean("autotuner_trigger", false).apply();
+            Log.d("AutoTuner", "Trigger flag found — starting auto tuning");
             autoTuner.startAutoTuning();
         } else {
             autoTunerHandler.postDelayed(this, 1000);
@@ -1807,7 +1806,7 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
     createTunerPanel(rootView);
 }
 
-// --- AutoTuner: панель запуска тюнинга ---
+// --- AutoTuner: панель запуска тюнинга (флаг вместо файла) ---
 private int tunerDp(int v) {
     return Math.round(v * getResources().getDisplayMetrics().density);
 }
@@ -1839,13 +1838,8 @@ private void createTunerPanel(FrameLayout rootView) {
 
     android.widget.Button btnTune = createTunerPanelButton("Настроить игру");
     btnTune.setOnClickListener(v -> {
-        try {
-            java.io.File trigger = new java.io.File("/sdcard/Download/autotuner_start.txt");
-            if (!trigger.exists()) trigger.createNewFile();
-            Log.d("AutoTuner", "Trigger file created");
-        } catch (Exception e) {
-            Log.e("AutoTuner", "Failed to create trigger file", e);
-        }
+        preferences.edit().putBoolean("autotuner_trigger", true).apply();
+        Log.d("AutoTuner", "Trigger flag set");
         hideTunerPanel();
     });
 
@@ -1910,7 +1904,7 @@ public void tunerKeyHold(int keyCode, long durationMs) {
 
 public void tunerRotate(long durationMs) {
     final long stepMs = 16;
-    final float dxPerStep = 2.0f;
+    final int dxPerStep = 2;
     final long endTime = android.os.SystemClock.uptimeMillis() + durationMs;
     final Runnable[] holder = new Runnable[1];
     holder[0] = () -> {
@@ -1927,6 +1921,90 @@ public void tunerRotate(long durationMs) {
         autoTunerHandler.postDelayed(holder[0], stepMs);
     };
     holder[0].run();
+}
+
+// --- AutoTuner: макрос (оригинальные методы) ---
+private void playMacro() {
+    try {
+        File file = new File(COORD_FILE_PATH);
+        String info = "Файл:\n" + file.getAbsolutePath()
+                + "\nСуществует: " + file.exists()
+                + "\nРазмер: " + file.length() + " байт";
+        Log.d("AutoTuner", info.replace("\n", " | "));
+        Toast.makeText(this, info, Toast.LENGTH_LONG).show();
+        if (!file.exists() || file.length() == 0) {
+            Toast.makeText(this, "❌ Макрос пуст или не найден!", Toast.LENGTH_LONG).show();
+            return;
+        }
+        // --- AutoTuner: сброс синхронизации игрового курсора перед воспроизведением ---
+        if (touchpadView != null) touchpadView.resetGameCursorSync();
+        // -----------------------------------------------------------------------------
+
+        BufferedReader reader = new BufferedReader(new FileReader(file));
+        String line;
+        long totalDelay = 0;
+        int stepCount = 0;
+        Handler macroHandler = new Handler(Looper.getMainLooper());
+        while ((line = reader.readLine()) != null) {
+            if (line.trim().isEmpty()) continue;
+            String[] parts = line.split(",");
+            if (parts.length >= 3) {
+                final int x = Integer.parseInt(parts[0].trim());
+                final int y = Integer.parseInt(parts[1].trim());
+                final long delay = Long.parseLong(parts[2].trim());
+                final int step = ++stepCount;
+                macroHandler.postDelayed(() -> {
+                    Log.d("AutoTuner", "Tap " + step + ": " + x + "," + y);
+                    if (touchpadView != null) touchpadView.injectTapAtXServer(x, y, 80);
+                }, totalDelay);
+                totalDelay += delay;
+            }
+        }
+        reader.close();
+        Toast.makeText(this, "✅ Воспроизведение " + stepCount + " кликов...", Toast.LENGTH_SHORT).show();
+    } catch (Exception e) {
+        Log.e("AutoTuner", "Macro error", e);
+        Toast.makeText(this, "Ошибка: " + e.getMessage(), Toast.LENGTH_LONG).show();
+    }
+}
+
+private void toggleMacroRecording(FrameLayout rootView) {
+    if (isRecordingMacro) {
+        // --- СТОП ---
+        isRecordingMacro = false;
+        btnCaptureClick.setText("📸 Запись");
+
+        if (touchpadView != null) {
+            touchpadView.setMacroRecorderListener(null);
+        }
+
+        File file = new File(COORD_FILE_PATH);
+        String info = "Файл: " + file.getAbsolutePath() + "\nРазмер: " + file.length() + " байт";
+        Log.d("AutoTuner", "Запись остановлена. " + info.replace("\n", " "));
+        Toast.makeText(this, "Запись остановлена!\n" + info, Toast.LENGTH_LONG).show();
+    } else {
+        // --- СТАРТ ---
+        isRecordingMacro = true;
+        btnCaptureClick.setText("⏹ Стоп");
+        lastMacroClickTime = System.currentTimeMillis();
+
+        File file = new File(COORD_FILE_PATH);
+        if (file.exists()) {
+            boolean deleted = file.delete();
+            Log.d("AutoTuner", "Старый файл удален: " + deleted);
+        }
+
+        Toast.makeText(this, "Тапай по кнопкам в игре!\nФайл: " + COORD_FILE_PATH, Toast.LENGTH_LONG).show();
+
+        if (touchpadView != null) {
+            touchpadView.setMacroRecorderListener((x, y) -> {
+                long now = System.currentTimeMillis();
+                long delay = now - lastMacroClickTime;
+                lastMacroClickTime = now;
+                saveMacroStep((int) x, (int) y, delay);
+            });
+        }
+    }
 }
 
 private void saveMacroStep(int x, int y, long delay) {
