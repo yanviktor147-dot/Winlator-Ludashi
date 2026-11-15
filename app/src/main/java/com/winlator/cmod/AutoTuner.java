@@ -28,8 +28,8 @@ public class AutoTuner {
     private static final long WARMUP_MS = 20000;      // прогрев после появления живого рендера
     private static final long MACRO_TO_ESC_MS = 5000; // от тапа макроса до Esc
     private static final long WORLD_LOAD_MS = 30000;  // ожидание загрузки мира после Esc
-    private static final long WALK_MS = 5000;         // короткая ходьба на месте моста
-    private static final long ROTATE_MS = 5000;       // поворот обзора
+    private static final long WALK_MS = 5000;         // короткая ходьба вперёд по мосту
+    private static final long ROTATE_MS = 16000;      // поворот обзора (в 3 раза дольше — почти круг)
     private static final int JUMP_COUNT = 5;
     private static final long JUMP_INTERVAL_MS = 3000;
     private static final long MEASURE_MS = 23000;     // замер FPS
@@ -204,21 +204,13 @@ public class AutoTuner {
             handler.postDelayed(act::tunerInjectEsc, 1000);
         }
         Log.d(TAG, "Waiting " + (WORLD_LOAD_MS / 1000) + "s for world load...");
-        runPhaseProgress("Пропускаю заставку, жду загрузку мира…", WORLD_LOAD_MS, this::startJumps);
+        runPhaseProgress("Пропускаю заставку, жду загрузку мира…", WORLD_LOAD_MS, this::startMovement);
     }
 
-    private void afterMovement() {
+    private void startMovement() {
         XServerDisplayActivity act = asActivity();
         if (act == null) { startMeasurement(); return; }
-        Log.d(TAG, "=== MOVEMENT: rotate " + (ROTATE_MS / 1000) + "s ===");
-        act.tunerRotate(ROTATE_MS);
-        handler.postDelayed(this::startMeasurement, ROTATE_MS + 100);
-    }
-
-    private void startJumps() {
-        XServerDisplayActivity act = asActivity();
-        if (act == null) { startMeasurement(); return; }
-        Log.d(TAG, "=== MOVEMENT: " + JUMP_COUNT + " jumps ===");
+        Log.d(TAG, "=== MOVEMENT: " + JUMP_COUNT + " jumps on spot ===");
         for (int j = 0; j < JUMP_COUNT; j++) {
             final long delay = j * JUMP_INTERVAL_MS;
             handler.postDelayed(() -> act.tunerKeyHold(KeyEvent.KEYCODE_SPACE, 150), delay);
@@ -229,9 +221,9 @@ public class AutoTuner {
     private void startWalk() {
         XServerDisplayActivity act = asActivity();
         if (act == null) { startMeasurement(); return; }
-        Log.d(TAG, "=== MOVEMENT: forward " + (WALK_MS / 1000) + "s (W) ===");
+        Log.d(TAG, "=== MOVEMENT: walk forward " + (WALK_MS / 1000) + "s (W) ===");
         act.tunerKeyHold(KeyEvent.KEYCODE_W, WALK_MS);
-        // Сам жмём E: первое окно вылезает сразу после начала движения (3 с), второе следом (+2 с)
+        // E закрывает обучающие всплывашки: первое окно на 3-й секунде, следом второе через 2 с
         long[] ePressTimes = {3000, 5000};
         for (long t : ePressTimes) {
             handler.postDelayed(() -> {
@@ -239,7 +231,16 @@ public class AutoTuner {
                 act.tunerKeyHold(KeyEvent.KEYCODE_E, 100);
             }, t);
         }
-        runPhaseProgress("Иду вперёд…", WALK_MS, this::afterMovement);
+        runPhaseProgress("Иду вперёд…", WALK_MS, this::afterWalk);
+    }
+
+    private void afterWalk() {
+        XServerDisplayActivity act = asActivity();
+        if (act == null) { startMeasurement(); return; }
+        Log.d(TAG, "=== MOVEMENT: rotate " + (ROTATE_MS / 1000) + "s ===");
+        act.tunerRotate(ROTATE_MS);
+        // Поворот — последняя фаза, сразу за ним замер: никаких лишних секунд
+        runPhaseProgress("Поворот обзора…", ROTATE_MS, this::startMeasurement);
     }
 
     private void startMeasurement() {
