@@ -1484,8 +1484,8 @@ final Runnable tunerTriggerPoll = new Runnable() {
     @Override
     public void run() {
         if (isFinishing() || isDestroyed()) return;
-        if (!AutoTuner.isRunning() && preferences.getBoolean("autotuner_trigger", false)) {
-            preferences.edit().putBoolean("autotuner_trigger", false).apply();
+        if (!AutoTuner.isRunning() && "1".equals(preferences.getString("autotuner_trigger", null))) {
+            preferences.edit().remove("autotuner_trigger").apply();
             Log.d("AutoTuner", "Trigger flag found — starting auto tuning");
             autoTuner.startAutoTuning();
         } else {
