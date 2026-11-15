@@ -28,7 +28,7 @@ public class AutoTuner {
     private static final long WARMUP_MS = 20000;      // прогрев после появления живого рендера
     private static final long MACRO_TO_ESC_MS = 5000; // от тапа макроса до Esc
     private static final long WORLD_LOAD_MS = 30000;  // ожидание загрузки мира после Esc
-    private static final long WALK_MS = 38000;        // путь вперёд до точки сохранения
+    private static final long WALK_MS = 5000;         // короткая ходьба на месте моста
     private static final long ROTATE_MS = 5000;       // поворот обзора
     private static final int JUMP_COUNT = 5;
     private static final long JUMP_INTERVAL_MS = 3000;
@@ -204,24 +204,7 @@ public class AutoTuner {
             handler.postDelayed(act::tunerInjectEsc, 1000);
         }
         Log.d(TAG, "Waiting " + (WORLD_LOAD_MS / 1000) + "s for world load...");
-        runPhaseProgress("Пропускаю заставку, жду загрузку мира…", WORLD_LOAD_MS, this::startMovement);
-    }
-
-    private void startMovement() {
-        XServerDisplayActivity act = asActivity();
-        if (act == null) { startMeasurement(); return; }
-        Log.d(TAG, "=== MOVEMENT: forward " + (WALK_MS / 1000) + "s (W) ===");
-        act.tunerKeyHold(KeyEvent.KEYCODE_W, WALK_MS);
-        // Сам жмём E: закрывает обучающие всплывашки, если вылезут
-        // Всплывашка с «E» вылезает сразу после начала движения — одного нажатия на 3-й секунде достаточно
-        long[] ePressTimes = {3000};
-        for (long t : ePressTimes) {
-            handler.postDelayed(() -> {
-                Log.d(TAG, "Pressing E at " + t + "ms");
-                act.tunerKeyHold(KeyEvent.KEYCODE_E, 100);
-            }, t);
-        }
-        runPhaseProgress("Иду к точке сохранения…", WALK_MS, this::afterMovement);
+        runPhaseProgress("Пропускаю заставку, жду загрузку мира…", WORLD_LOAD_MS, this::startJumps);
     }
 
     private void afterMovement() {
@@ -229,7 +212,7 @@ public class AutoTuner {
         if (act == null) { startMeasurement(); return; }
         Log.d(TAG, "=== MOVEMENT: rotate " + (ROTATE_MS / 1000) + "s ===");
         act.tunerRotate(ROTATE_MS);
-        handler.postDelayed(this::startJumps, ROTATE_MS + 100);
+        handler.postDelayed(this::startMeasurement, ROTATE_MS + 100);
     }
 
     private void startJumps() {
@@ -240,7 +223,23 @@ public class AutoTuner {
             final long delay = j * JUMP_INTERVAL_MS;
             handler.postDelayed(() -> act.tunerKeyHold(KeyEvent.KEYCODE_SPACE, 150), delay);
         }
-        runPhaseProgress("Прыжки, затем замер…", JUMP_COUNT * JUMP_INTERVAL_MS, this::startMeasurement);
+        runPhaseProgress("Прыжки на месте…", JUMP_COUNT * JUMP_INTERVAL_MS, this::startWalk);
+    }
+
+    private void startWalk() {
+        XServerDisplayActivity act = asActivity();
+        if (act == null) { startMeasurement(); return; }
+        Log.d(TAG, "=== MOVEMENT: forward " + (WALK_MS / 1000) + "s (W) ===");
+        act.tunerKeyHold(KeyEvent.KEYCODE_W, WALK_MS);
+        // Сам жмём E: первое окно вылезает сразу после начала движения (3 с), второе следом (+2 с)
+        long[] ePressTimes = {3000, 5000};
+        for (long t : ePressTimes) {
+            handler.postDelayed(() -> {
+                Log.d(TAG, "Pressing E at " + t + "ms");
+                act.tunerKeyHold(KeyEvent.KEYCODE_E, 100);
+            }, t);
+        }
+        runPhaseProgress("Иду вперёд…", WALK_MS, this::afterMovement);
     }
 
     private void startMeasurement() {
