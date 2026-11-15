@@ -29,10 +29,10 @@ public class AutoTuner {
     private static final long MACRO_TO_ESC_MS = 5000; // от тапа макроса до Esc
     private static final long WORLD_LOAD_MS = 30000;  // ожидание загрузки мира после Esc
     private static final long WALK_MS = 5000;         // короткая ходьба вперёд по мосту
-    private static final long ROTATE_MS = 16000;      // поворот обзора (в 3 раза дольше — почти круг)
+    private static final long ROTATE_MS = 20000;      // поворот обзора (в 3 раза дольше — почти круг)
     private static final int JUMP_COUNT = 5;
     private static final long JUMP_INTERVAL_MS = 3000;
-    private static final long MEASURE_MS = 23000;     // замер FPS
+    private static final long MEASURE_MS = 15000;     // замер FPS
     private static final long SAMPLE_INTERVAL_MS = 1000;
 
     private static class SessionState {
