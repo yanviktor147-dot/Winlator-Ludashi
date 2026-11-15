@@ -210,6 +210,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
     private int frameRatingWindowId = -1;
 private final Handler autoTunerHandler = new Handler(Looper.getMainLooper());
 private android.widget.LinearLayout tunerPanel;
+    private android.widget.TextView tunerStatusView;
 private android.widget.Button btnCaptureClick;
 private android.widget.Button btnTestClick;
 private boolean isRecordingMacro = false;
@@ -1796,6 +1797,7 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
     });
 
     createTunerPanel(rootView);
+    createTunerStatusView(rootView);
 }
 
 // --- AutoTuner: панель запуска тюнинга (флаг вместо файла) ---
@@ -1872,6 +1874,59 @@ public void hideTunerPanel() {
     if (tunerPanel != null) tunerPanel.setVisibility(View.GONE);
 }
 
+private void createTunerStatusView(FrameLayout rootView) {
+    tunerStatusView = new android.widget.TextView(this);
+    tunerStatusView.setTextColor(Color.WHITE);
+    tunerStatusView.setTextSize(14);
+    tunerStatusView.setPadding(tunerDp(12), tunerDp(6), tunerDp(12), tunerDp(6));
+    GradientDrawable bg = new GradientDrawable();
+    bg.setColor(Color.argb(160, 0, 0, 0));
+    bg.setCornerRadius(tunerDp(8));
+    tunerStatusView.setBackground(bg);
+    FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+    lp.topMargin = tunerDp(90);
+    tunerStatusView.setVisibility(View.GONE);
+    rootView.addView(tunerStatusView, lp);
+}
+
+public void showTunerStatus(String text) {
+    runOnUiThread(() -> {
+        if (tunerStatusView == null) return;
+        tunerStatusView.setText(text);
+        tunerStatusView.setVisibility(View.VISIBLE);
+    });
+}
+
+public void hideTunerStatus() {
+    runOnUiThread(() -> { if (tunerStatusView != null) tunerStatusView.setVisibility(View.GONE); });
+}
+
+// --- AutoTuner: закрытие игры после успешного тюнинга ---
+public void closeAfterTuner() {
+    try {
+        hideTunerStatus();
+        if (autoTuner != null) autoTuner.clearTimers();
+        if (xServerView != null) xServerView.forceCleanup();
+        if (midiHandler != null) midiHandler.stop();
+        if (environment != null) {
+            environment.stopEnvironmentComponents();
+            environment = null;
+        }
+        if (winHandler != null) winHandler.stop();
+        if (wineRequestHandler != null) wineRequestHandler.stop();
+        if (ownsPrefixLease && container != null) {
+            com.winlator.cmod.core.ContainerSessionGate.stop(container.id);
+            ownsPrefixLease = false;
+        }
+        ProcessHelper.terminateAllWineProcesses();
+    } catch (Exception e) {
+        Log.e("AutoTuner", "closeAfterTuner cleanup failed", e);
+    }
+    finishAffinity();
+}
+
 public void onAutoTunerFinished() {
     showTunerPanel();
 }
@@ -1906,8 +1961,8 @@ public void tunerKeyHold(int keyCode, long durationMs) {
 }
 
 public void tunerRotate(long durationMs) {
-    final long stepMs = 16;
-    final int dxPerStep = 2;
+    final long stepMs = 33;
+    final int dxPerStep = 4;
     final long endTime = android.os.SystemClock.uptimeMillis() + durationMs;
     final Runnable[] holder = new Runnable[1];
     holder[0] = () -> {
