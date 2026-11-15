@@ -210,7 +210,6 @@ public class XServerDisplayActivity extends AppCompatActivity {
     private int frameRatingWindowId = -1;
 private final Handler autoTunerHandler = new Handler(Looper.getMainLooper());
 private android.widget.LinearLayout tunerPanel;
-    private android.widget.TextView tunerStatusView;
 private android.widget.Button btnCaptureClick;
 private android.widget.Button btnTestClick;
 private boolean isRecordingMacro = false;
@@ -978,6 +977,30 @@ public void restartForAutoTuner() {
 
     recreate();
 }
+
+    // --- AutoTuner: закрытие игры после успешного тюнинга ---
+    public void closeAfterTuner() {
+        hideTunerStatus();
+        try {
+            if (autoTuner != null) autoTuner.clearTimers();
+            if (xServerView != null) xServerView.forceCleanup();
+            if (midiHandler != null) midiHandler.stop();
+            if (environment != null) {
+                environment.stopEnvironmentComponents();
+                environment = null;
+            }
+            if (winHandler != null) winHandler.stop();
+            if (wineRequestHandler != null) wineRequestHandler.stop();
+            if (ownsPrefixLease && container != null) {
+                com.winlator.cmod.core.ContainerSessionGate.stop(container.id);
+                ownsPrefixLease = false;
+            }
+            ProcessHelper.terminateAllWineProcesses();
+        } catch (Exception e) {
+            Log.e("AutoTuner", "closeAfterTuner cleanup failed", e);
+        }
+        finishAffinity();
+    }
 
     public void exitSteamLaunchFailure() { exit(); }
 
@@ -1800,6 +1823,116 @@ private void createAutoTunerOverlay(FrameLayout rootView) {
     createTunerStatusView(rootView);
 }
 
+
+// --- AutoTuner: инфо-окно со статусом и прогресс-баром (перетаскиваемое) ---
+private android.widget.LinearLayout tunerStatusView;
+private android.widget.TextView tunerStatusText;
+private android.widget.FrameLayout tunerStatusBarTrack;
+private android.view.View tunerStatusBarFill;
+
+// Перетаскивание пальцем: держим смещение в translationX/Y, клик срабатывает,
+// если палец не сдвинулся дальше 12px (защита от ложных нажатий)
+private void makeTunerViewDraggable(View v) {
+    v.setOnTouchListener((view, event) -> {
+        float[] s = (float[]) view.getTag();
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                view.setTag(new float[]{view.getTranslationX(), view.getTranslationY(),
+                        event.getRawX(), event.getRawY(), 0});
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                if (s != null) {
+                    float dx = event.getRawX() - s[2];
+                    float dy = event.getRawY() - s[3];
+                    view.setTranslationX(s[0] + dx);
+                    view.setTranslationY(s[1] + dy);
+                    if (Math.abs(dx) > 12 || Math.abs(dy) > 12) s[4] = 1;
+                }
+                return true;
+            case MotionEvent.ACTION_UP:
+                if (s != null && s[4] < 1) view.performClick();
+                return true;
+        }
+        return false;
+    });
+}
+
+private void createTunerStatusView(FrameLayout rootView) {
+    tunerStatusView = new android.widget.LinearLayout(this);
+    tunerStatusView.setOrientation(android.widget.LinearLayout.VERTICAL);
+    tunerStatusView.setGravity(Gravity.CENTER);
+    int pad = tunerDp(12);
+    tunerStatusView.setPadding(pad, tunerDp(8), pad, tunerDp(8));
+    GradientDrawable bg = new GradientDrawable();
+    bg.setColor(Color.argb(77, 0, 0, 30)); // фон ~70% прозрачности
+    bg.setCornerRadius(0);                 // прямоугольник
+    bg.setStroke(2, Color.argb(255, 40, 110, 255)); // синяя рамка
+    tunerStatusView.setBackground(bg);
+
+    tunerStatusText = new android.widget.TextView(this);
+    tunerStatusText.setTextColor(Color.argb(255, 80, 160, 255)); // синий текст
+    tunerStatusText.setTextSize(14);
+    tunerStatusText.setGravity(Gravity.START);           // многострочный список — выравнивание слева
+    tunerStatusText.setMaxWidth(tunerDp(340));           // чтобы длинные строки не расползали окно
+    tunerStatusText.setLineSpacing(tunerDp(2), 1.0f);    // читаемые интервалы между строками списка
+    tunerStatusView.addView(tunerStatusText);
+
+    tunerStatusBarTrack = new android.widget.FrameLayout(this);
+    GradientDrawable trackBg = new GradientDrawable();
+    trackBg.setColor(Color.argb(70, 0, 0, 0));
+    tunerStatusBarTrack.setBackground(trackBg);
+    android.widget.LinearLayout.LayoutParams trackLp = new android.widget.LinearLayout.LayoutParams(
+            tunerDp(260), tunerDp(7));
+    trackLp.topMargin = tunerDp(6);
+    tunerStatusBarTrack.setLayoutParams(trackLp);
+
+    tunerStatusBarFill = new View(this);
+    GradientDrawable fillBg = new GradientDrawable();
+    fillBg.setColor(Color.argb(255, 40, 110, 255)); // синяя полоса заполнения
+    tunerStatusBarFill.setBackground(fillBg);
+    android.widget.FrameLayout.LayoutParams fillLp = new android.widget.FrameLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT);
+    tunerStatusBarFill.setLayoutParams(fillLp);
+    tunerStatusBarFill.setVisibility(View.GONE);
+    tunerStatusBarTrack.addView(tunerStatusBarFill);
+    tunerStatusView.addView(tunerStatusBarTrack);
+
+    FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+    lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+    lp.topMargin = tunerDp(96);
+    tunerStatusView.setVisibility(View.GONE);
+    rootView.addView(tunerStatusView, lp);
+    makeTunerViewDraggable(tunerStatusView);
+}
+
+// progress: 0..1 — показать полосу заполнения, меньше 0 — скрыть полосу
+public void showTunerStatus(String text, float progress) {
+    runOnUiThread(() -> {
+        if (tunerStatusView == null) return;
+        tunerStatusText.setText(text);
+        if (progress >= 0f) {
+            tunerStatusBarTrack.post(() -> {
+                int w = tunerStatusBarTrack.getWidth();
+                if (w > 0) {
+                    android.widget.FrameLayout.LayoutParams flp =
+                            (android.widget.FrameLayout.LayoutParams) tunerStatusBarFill.getLayoutParams();
+                    flp.width = Math.max(2, Math.round(w * Math.min(1f, progress)));
+                    tunerStatusBarFill.setLayoutParams(flp);
+                }
+            });
+            tunerStatusBarFill.setVisibility(View.VISIBLE);
+        } else {
+            tunerStatusBarFill.setVisibility(View.GONE);
+        }
+        tunerStatusView.setVisibility(View.VISIBLE);
+    });
+}
+
+public void hideTunerStatus() {
+    runOnUiThread(() -> { if (tunerStatusView != null) tunerStatusView.setVisibility(View.GONE); });
+}
+
 // --- AutoTuner: панель запуска тюнинга (флаг вместо файла) ---
 private int tunerDp(int v) {
     return Math.round(v * getResources().getDisplayMetrics().density);
@@ -1862,6 +1995,7 @@ private void createTunerPanel(FrameLayout rootView) {
     lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
     lp.topMargin = tunerDp(16);
     rootView.addView(tunerPanel, lp);
+    makeTunerViewDraggable(tunerPanel);
 
     if (AutoTuner.isRunning()) tunerPanel.setVisibility(View.GONE);
 }
@@ -1872,59 +2006,6 @@ public void showTunerPanel() {
 
 public void hideTunerPanel() {
     if (tunerPanel != null) tunerPanel.setVisibility(View.GONE);
-}
-
-private void createTunerStatusView(FrameLayout rootView) {
-    tunerStatusView = new android.widget.TextView(this);
-    tunerStatusView.setTextColor(Color.WHITE);
-    tunerStatusView.setTextSize(14);
-    tunerStatusView.setPadding(tunerDp(12), tunerDp(6), tunerDp(12), tunerDp(6));
-    GradientDrawable bg = new GradientDrawable();
-    bg.setColor(Color.argb(160, 0, 0, 0));
-    bg.setCornerRadius(tunerDp(8));
-    tunerStatusView.setBackground(bg);
-    FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
-    lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-    lp.topMargin = tunerDp(90);
-    tunerStatusView.setVisibility(View.GONE);
-    rootView.addView(tunerStatusView, lp);
-}
-
-public void showTunerStatus(String text) {
-    runOnUiThread(() -> {
-        if (tunerStatusView == null) return;
-        tunerStatusView.setText(text);
-        tunerStatusView.setVisibility(View.VISIBLE);
-    });
-}
-
-public void hideTunerStatus() {
-    runOnUiThread(() -> { if (tunerStatusView != null) tunerStatusView.setVisibility(View.GONE); });
-}
-
-// --- AutoTuner: закрытие игры после успешного тюнинга ---
-public void closeAfterTuner() {
-    try {
-        hideTunerStatus();
-        if (autoTuner != null) autoTuner.clearTimers();
-        if (xServerView != null) xServerView.forceCleanup();
-        if (midiHandler != null) midiHandler.stop();
-        if (environment != null) {
-            environment.stopEnvironmentComponents();
-            environment = null;
-        }
-        if (winHandler != null) winHandler.stop();
-        if (wineRequestHandler != null) wineRequestHandler.stop();
-        if (ownsPrefixLease && container != null) {
-            com.winlator.cmod.core.ContainerSessionGate.stop(container.id);
-            ownsPrefixLease = false;
-        }
-        ProcessHelper.terminateAllWineProcesses();
-    } catch (Exception e) {
-        Log.e("AutoTuner", "closeAfterTuner cleanup failed", e);
-    }
-    finishAffinity();
 }
 
 public void onAutoTunerFinished() {
