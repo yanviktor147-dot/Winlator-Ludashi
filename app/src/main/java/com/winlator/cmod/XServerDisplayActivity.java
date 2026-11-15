@@ -1942,6 +1942,10 @@ private android.widget.Button createTunerPanelButton(String text) {
     android.widget.Button b = new android.widget.Button(this);
     b.setText(text);
     b.setTextSize(13);
+    b.setMinWidth(0);
+    b.setMinHeight(0);
+    b.setMinimumWidth(0);
+    b.setMinimumHeight(0);
     b.setTextColor(Color.WHITE);
     b.setAllCaps(false);
     b.setPadding(tunerDp(10), tunerDp(4), tunerDp(10), tunerDp(4));
@@ -1979,8 +1983,7 @@ private void createTunerPanel(FrameLayout rootView) {
     btnSkip.setOnClickListener(v -> hideTunerPanel());
 
     android.widget.LinearLayout.LayoutParams btnLp = new android.widget.LinearLayout.LayoutParams(
-            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+            tunerDp(150), tunerDp(36));
     btnTune.setLayoutParams(btnLp);
     btnSkip.setLayoutParams(new android.widget.LinearLayout.LayoutParams(btnLp));
 
