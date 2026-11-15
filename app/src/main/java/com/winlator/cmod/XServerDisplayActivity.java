@@ -2016,7 +2016,7 @@ public void showTunerPanel() {
     if (tunerPromptView == null) return;
     tunerPromptView.setVisibility(View.VISIBLE);
     if (tunerPromptCountdown != null) autoTunerHandler.removeCallbacks(tunerPromptCountdown);
-    final int total = 5; // секунд до запуска автонастройки
+    final int total = 6; // секунд до запуска автонастройки
     tunerPromptCountdown = new Runnable() {
         private int remaining = total;
         @Override
@@ -2045,7 +2045,16 @@ public void showTunerPanel() {
             autoTunerHandler.postDelayed(this, 1000);
         }
     };
-    tunerPromptCountdown.run();
+            // Старт отсчёта — после первой отрисовки таблички (иначе таймер тикает во время загрузки)
+        tunerPromptView.getViewTreeObserver().addOnDrawListener(new android.view.ViewTreeObserver.OnDrawListener() {
+            private boolean started = false;
+            @Override
+            public void onDraw() {
+                if (started) return;
+                started = true;
+                autoTunerHandler.postDelayed(tunerPromptCountdown, 1000);
+            }
+        });
 }
 
 public void hideTunerPanel() {
