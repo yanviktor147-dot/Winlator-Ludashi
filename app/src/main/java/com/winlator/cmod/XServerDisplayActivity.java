@@ -960,6 +960,7 @@ if (classicHud != null) runOnUiThread(() -> classicHud.enableForAutoTuner());
 public void restartForAutoTuner() {
     if (!exiting.compareAndSet(false, true)) return;
 
+    if (autoTuner != null) autoTuner.clearTimers();
     if (xServerView != null) xServerView.forceCleanup();
     if (midiHandler != null) midiHandler.stop();
     if (environment != null) {
@@ -972,18 +973,9 @@ public void restartForAutoTuner() {
         com.winlator.cmod.core.ContainerSessionGate.stop(container.id);
         ownsPrefixLease = false;
     }
-
     ProcessHelper.terminateAllWineProcesses();
 
-    Intent intent = new Intent(this, XServerDisplayActivity.class);
-    intent.putExtra("container_id", container.id);
-    if (shortcut != null) {
-        intent.putExtra("shortcut_path", shortcut.path);
-        intent.putExtra("shortcut_name", shortcutName);
-    }
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-    startActivity(intent);
-    finish();
+    recreate();
 }
 
     public void exitSteamLaunchFailure() { exit(); }
@@ -1845,6 +1837,12 @@ private void createTunerPanel(FrameLayout rootView) {
 
     android.widget.Button btnSkip = createTunerPanelButton("Пропустить");
     btnSkip.setOnClickListener(v -> hideTunerPanel());
+        btnTune.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+    btnSkip.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
 
     tunerPanel.addView(btnTune);
     android.view.View spacer = new android.view.View(this);
